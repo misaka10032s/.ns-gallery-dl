@@ -1,5 +1,6 @@
 download/
 save/
+__pycache__/
 
 .env
 history.json
