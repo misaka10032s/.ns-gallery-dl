@@ -1,0 +1,6 @@
+download/
+save/
+
+.env
+history.json
+token.json
