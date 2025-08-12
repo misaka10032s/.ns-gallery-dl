@@ -1,0 +1,23 @@
+{
+    "manifest_version": 3,
+    "name": "Pixiv Downloader",
+    "version": "1.0",
+    "description": "Select and export Pixiv artwork links.",
+    "permissions": [
+        "activeTab"
+    ],
+    "content_scripts": [
+        {
+            "matches": [
+                "https://www.pixiv.net/users/*",
+                "https://www.pixiv.net/artworks/*"
+            ],
+            "js": [
+                "content.js"
+            ],
+            "css": [
+                "style.css"
+            ]
+        }
+    ]
+}
