@@ -7,14 +7,17 @@
         "activeTab",
         "webRequest",
         "notifications",
-        "offscreen",
+        "scripting",
         "clipboardWrite"
     ],
     "host_permissions": [
-        "https://app-api.pixiv.net/*"
+        "https://app-api.pixiv.net/*",
+        "https://www.pixiv.net/*",
+        "https://accounts.pixiv.net/*"
     ],
     "background": {
-        "service_worker": "background.js"
+        "service_worker": "background.js",
+        "type": "module"
     },
     "content_scripts": [
         {
@@ -23,7 +26,7 @@
                 "https://www.pixiv.net/artworks/*"
             ],
             "js": [
-                "pixiv/index.js"
+                "pixiv/content.js"
             ],
             "css": [
                 "pixiv/style.css"

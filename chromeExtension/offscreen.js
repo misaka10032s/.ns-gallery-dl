@@ -1,19 +1,21 @@
-chrome.runtime.onMessage.addListener(handleMessages);
+// offscreen.js
 
-async function handleMessages(message) {
-  if (message.target !== 'offscreen') {
-    return;
+// Listen for the data payload from the background script.
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === 'copy-this') {
+    copyToClipboard(message.data);
   }
-  if (message.type === 'copy-to-clipboard') {
-    await handleClipboardWrite(message.data);
-  }
-}
+});
 
-async function handleClipboardWrite(data) {
+// Signal to the background script that the offscreen document is ready.
+chrome.runtime.sendMessage({ type: 'offscreen-ready' });
+
+// The actual clipboard write function.
+async function copyToClipboard(data) {
   try {
     await navigator.clipboard.writeText(data);
   } finally {
-    // The offscreen document has done its job and can be closed.
+    // Close the offscreen document after the operation is complete.
     window.close();
   }
 }
