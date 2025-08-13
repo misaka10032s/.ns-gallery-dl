@@ -1,11 +1,21 @@
 {
     "manifest_version": 3,
-    "name": "Pixiv Downloader",
+    "name": "NS gallery-dl extension",
     "version": "1.0",
-    "description": "Select and export Pixiv artwork links.",
+    "description": "Select and export NS gallery artwork links.",
     "permissions": [
-        "activeTab"
+        "activeTab",
+        "webRequest",
+        "notifications",
+        "offscreen",
+        "clipboardWrite"
     ],
+    "host_permissions": [
+        "https://app-api.pixiv.net/*"
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
     "content_scripts": [
         {
             "matches": [
@@ -13,10 +23,10 @@
                 "https://www.pixiv.net/artworks/*"
             ],
             "js": [
-                "content.js"
+                "pixiv/index.js"
             ],
             "css": [
-                "style.css"
+                "pixiv/style.css"
             ]
         }
     ]
