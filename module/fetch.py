@@ -67,8 +67,12 @@ def try_download(url, tokens):
 
 def parse_urls():
     if not os.path.exists(INPUT_FILE):
-        print(f"[!] 找不到 {INPUT_FILE}")
-        sys.exit(1)
+        with open(INPUT_FILE, "w", encoding="utf-8") as f:
+            pass  # Create the file
+        print(f"[!] {INPUT_FILE} not found.")
+        print(f"[*] An empty {INPUT_FILE} has been created for you.")
+        print(f"[*] Please add URLs to it and run the script again.")
+        sys.exit(0)
 
     with open(INPUT_FILE, "r", encoding="utf-8") as f:
         raw_lines = f.read().splitlines()
@@ -79,7 +83,11 @@ def parse_urls():
         if not line:
             continue
 
-        if line.startswith("p") and line[1:].isdigit():
+        if line.startswith("pw") and line[2:].isdigit():
+            url = f"https://www.pixiv.net/artworks/{line[2:]}"
+        elif line.startswith("pu") and line[2:].isdigit():
+            url = f"https://www.pixiv.net/users/{line[2:]}"
+        elif line.startswith("p") and line[1:].isdigit():
             url = f"https://www.pixiv.net/artworks/{line[1:]}"
         elif line.lower() == "x":
             url = "https://x.com"

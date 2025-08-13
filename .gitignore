@@ -4,6 +4,7 @@ users.data/
 __pycache__/
 venv/
 
+dl.txt
 .env
 history.json
 token.json
