@@ -1,21 +1,31 @@
-// offscreen.js
+// chromeExtension/offscreen.js
 
-// Listen for the data payload from the background script.
-chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === 'copy-this') {
-    copyToClipboard(message.data);
+// This script is designed to run in an offscreen document.
+// It handles copying text to the clipboard.
+
+chrome.runtime.onMessage.addListener(async (message) => {
+  if (message.target !== 'offscreen') {
+    return;
+  }
+
+  if (message.type === 'copy-to-clipboard') {
+    await handleCopyToClipboard(message.data);
   }
 });
 
-// Signal to the background script that the offscreen document is ready.
-chrome.runtime.sendMessage({ type: 'offscreen-ready' });
-
-// The actual clipboard write function.
-async function copyToClipboard(data) {
+async function handleCopyToClipboard(text) {
   try {
-    await navigator.clipboard.writeText(data);
-  } finally {
-    // Close the offscreen document after the operation is complete.
-    window.close();
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    textarea.remove();
+    console.log('Text copied to clipboard:', text);
+
+    // this will cause document was not focused
+    // await navigator.clipboard.writeText(text);
+  } catch (error) {
+    console.error('Failed to copy text to clipboard:', error);
   }
 }

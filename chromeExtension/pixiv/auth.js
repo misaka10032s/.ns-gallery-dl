@@ -28,28 +28,15 @@ function handleAuthCode(code) {
     priority: 2,
   });
 
-  // 2. Copy the code to the clipboard using scripting.
+  // 2. Copy the code to the clipboard using the offscreen document.
   copyTextToClipboard(code);
 }
 
+// This function sends a message to the background script to copy text.
 async function copyTextToClipboard(text) {
-  try {
-    // Find the active tab to inject the script into.
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    console.log('Text copied to clipboard:', text, tab);
-
-    if (tab) {
-      // insert text to body
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: (textToCopy) => {
-          console.log('Text copied to clipboard:', textToCopy, navigator, navigator?.clipboard, navigator?.clipboard?.writeText);
-          navigator.clipboard.writeText(textToCopy);
-        },
-        args: [text],
-      });
-    }
-  } catch (err) {
-    console.error('Failed to copy text using scripting:', err);
-  }
+  await chrome.runtime.sendMessage({
+    target: 'offscreen',
+    type: 'copy-to-clipboard',
+    data: text,
+  });
 }

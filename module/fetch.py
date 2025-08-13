@@ -79,7 +79,7 @@ def parse_urls():
 
     urls = []
     for line in raw_lines:
-        line = line.strip()
+        line = line.strip().replace(" ", "")
         if not line:
             continue
 
