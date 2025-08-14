@@ -1,18 +1,21 @@
 
-const getArtworks = () => {
-    const links = Array.from(document.querySelectorAll('a[href*="/artworks/"]'));
-    const artworkLinks = links.filter(link => link.href.includes('/artworks/') && link.querySelector('img'));
+const getGalleries = () => {
+    const links = Array.from(document.querySelectorAll('a[href*="/photos-index-aid-"]'));
+    const galleryLinks = links.filter(link => link.href.match(/photos-index-aid-\d+\.html/));
     
-    const artworkContainers = artworkLinks.map(link => link.closest('div'));
-    return artworkContainers.map((container, index) => ({
-        container,
-        link: artworkLinks[index].href,
-    }));
+    return galleryLinks.map(link => {
+        // On wnacg, the link is inside a 'li' which is a good container.
+        const container = link.closest('li');
+        return {
+            container: container || link, // Fallback to the link itself
+            link: link.href,
+        };
+    });
 };
 
 const addCheckboxes = () => {
-    const artworks = getArtworks();
-    artworks.forEach(({ container, link }) => {
+    const galleries = getGalleries();
+    galleries.forEach(({ container, link }) => {
         if (container.querySelector('.artwork-checkbox')) {
             return;
         }
@@ -20,7 +23,11 @@ const addCheckboxes = () => {
         checkbox.type = 'checkbox';
         checkbox.className = 'artwork-checkbox';
         checkbox.dataset.link = link;
-        container.style.position = 'relative';
+        
+        // Ensure the container can have absolutely positioned children
+        if (getComputedStyle(container).position === 'static') {
+            container.style.position = 'relative';
+        }
         container.appendChild(checkbox);
     });
 };
@@ -41,9 +48,11 @@ const addExportButton = () => {
         });
 
         if (selectedLinks.length > 0) {
-            chrome.runtime.sendMessage({ type: 'downloadUrls', urls: selectedLinks });
+            // For wnacg, we need the "slide" URL, not the "view" URL
+            const slideUrls = selectedLinks.map(url => url.replace('index', 'slide'));
+            chrome.runtime.sendMessage({ type: 'downloadUrls', urls: slideUrls });
         } else {
-            alert('No artworks selected.');
+            alert('No galleries selected.');
         }
     });
 };
@@ -58,5 +67,6 @@ observer.observe(document.body, {
     subtree: true,
 });
 
+// Initial run
 addCheckboxes();
 addExportButton();

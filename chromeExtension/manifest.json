@@ -32,6 +32,31 @@
             "css": [
                 "pixiv/style.css"
             ]
+        },
+        {
+            "matches": [
+                "https://nhentai.net/*",
+                "https://nhentai.net/g/*"
+            ],
+            "js": [
+                "nhentai/content.js"
+            ],
+            "css": [
+                "nhentai/style.css"
+            ]
+        },
+        {
+            "matches": [
+                "https://www.wnacg.com/*",
+                "https://www.wnacg.com/photos-view-id-*.html",
+                "https://www.wnacg.com/photos-slide-aid-*.html"
+            ],
+            "js": [
+                "wnacg/content.js"
+            ],
+            "css": [
+                "wnacg/style.css"
+            ]
         }
     ]
 }
