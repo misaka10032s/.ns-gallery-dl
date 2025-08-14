@@ -1,6 +1,6 @@
 download/
 save/
-users.data/
+data/
 __pycache__/
 venv/
 
@@ -8,3 +8,5 @@ dl.txt
 .env
 history.json
 token.json
+
+cli.gemini.cmd

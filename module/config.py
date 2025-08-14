@@ -1,8 +1,8 @@
 # -- config.py --
 
 # File Paths
-HISTORY_FILE = "history.json"
-TOKEN_FILE = "token.json"
+HISTORY_FILE = "data/history.json"
+TOKEN_FILE = "data/token.json"
 INPUT_FILE = "dl.txt"
 DOWNLOAD_DIR = "download"
 
