@@ -1,3 +1,8 @@
 # This project uses gallery-dl, which is expected to be installed and in the system's PATH.
 # You can install it using pip:
 # pip install gallery-dl
+
+requests
+beautifulsoup4
+cloudscraper
+lxml

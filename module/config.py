@@ -9,3 +9,4 @@ DOWNLOAD_DIR = "download"
 # Download Settings
 MAX_RETRIES = 10
 RETRY_DELAY = 5  # seconds
+MAX_DOWNLOAD_THREADS = 5

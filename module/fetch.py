@@ -5,9 +5,16 @@ import time
 import itertools
 import subprocess
 from .site.pixiv import get_pixiv_token
+from .site.nhentai import download_nhentai
+from .site.wnacg import download_wnacg
 from .config import DOWNLOAD_DIR, MAX_RETRIES, RETRY_DELAY, INPUT_FILE
 
 def try_download(url, tokens):
+    if "nhentai.net" in url.lower():
+        return download_nhentai(url, tokens)
+    if "wnacg.com" in url.lower():
+        return download_wnacg(url, tokens)
+        
     stop_animation = False
 
     def animate():
@@ -64,6 +71,7 @@ def try_download(url, tokens):
                 continue
 
     return "failed"
+
 
 def parse_urls():
     if not os.path.exists(INPUT_FILE):
