@@ -65,6 +65,14 @@ The extension helps you quickly grab artwork IDs from a Pixiv user's page.
     -   A dialog will appear with the selected artwork IDs. Copy this list.
     -   Paste the IDs into `dl.txt`, one per line, using the `p<artwork_id>` format.
 
+### 🌐 Supported Sites
+
+-   Pixiv
+-   X (Twitter)
+-   nhentai
+-   wnacg
+-   yande.re
+
 ---
 
 ## 🇨🇳 繁體中文
@@ -128,6 +136,14 @@ The extension helps you quickly grab artwork IDs from a Pixiv user's page.
     -   將出現一個包含所選作品 ID 的對話方塊。複製此列表。
     -   將 ID 貼到 `dl.txt` 中，每行一個，使用 `p<作品_id>` 格式。
 
+### 🌐 支援的網站
+
+-   Pixiv
+-   X (Twitter)
+-   nhentai
+-   wnacg
+-   yande.re
+
 ---
 
 ## 🇯🇵 日本語
@@ -190,3 +206,11 @@ The extension helps you quickly grab artwork IDs from a Pixiv user's page.
     -   左下隅にある **Export** ボタンをクリックします。
     -   選択した作品 ID を含むダイアログが表示されます。このリストをコピーします。
     -   ID を `dl.txt` に貼り付けます。1行に1つずつ、`p<作品_id>` 形式を使用します。
+
+### 🌐 対応サイト
+
+-   Pixiv
+-   X (Twitter)
+-   nhentai
+-   wnacg
+-   yande.re
