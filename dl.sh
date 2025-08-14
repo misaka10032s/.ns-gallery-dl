@@ -1,8 +1,10 @@
 #!/bin/bash
 
-# Set the name of the virtual environment directory
+SCRIPT_VERSION="1.0.0"
 VENV_DIR="venv"
 INSTALL_FLAG="$VENV_DIR/install.flag"
+
+echo "[*] Script version: $SCRIPT_VERSION"
 
 # Check if the virtual environment directory exists
 if [ ! -d "$VENV_DIR" ]; then
@@ -17,14 +19,26 @@ fi
 # Activate the virtual environment
 source "$VENV_DIR/bin/activate"
 
-# Install dependencies if the flag file doesn't exist
+NEEDS_INSTALL=false
 if [ ! -f "$INSTALL_FLAG" ]; then
-    echo "[*] Installing dependencies..."
-    pip install -r requirements.txt
-    pip install gallery-dl
-    if [ $? -eq 0 ]; then
-        touch "$INSTALL_FLAG"
+    NEEDS_INSTALL=true
+else
+    INSTALLED_VERSION=$(cat "$INSTALL_FLAG")
+    if [ "$INSTALLED_VERSION" != "$SCRIPT_VERSION" ]; then
+        NEEDS_INSTALL=true
+        echo "[*] Installed version ($INSTALLED_VERSION) is older than script version ($SCRIPT_VERSION)."
     fi
+fi
+
+if [ "$NEEDS_INSTALL" = true ]; then
+    echo "[*] Installing/updating dependencies..."
+    pip install -r requirements.txt --upgrade
+    pip install gallery-dl --upgrade
+    if [ $? -eq 0 ]; then
+        echo "$SCRIPT_VERSION" > "$INSTALL_FLAG"
+    fi
+else
+    echo "[*] Dependencies are up to date."
 fi
 
 # Run the main script

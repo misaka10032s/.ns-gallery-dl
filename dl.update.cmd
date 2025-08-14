@@ -1,27 +1,19 @@
 @echo off
 setlocal
 
-REM Set the name of the virtual environment directory
 set VENV_DIR=venv
+set INSTALL_FLAG=%VENV_DIR%\install.flag
 
-REM Check if the virtual environment directory exists
-if not exist "%VENV_DIR%\Scripts\activate.bat" (
-    echo [!] Virtual environment not found. Please run dl.cmd first to create it.
-    exit /b 1
+if exist "%INSTALL_FLAG%" (
+    echo [*] Removing installation flag to force an update on next run.
+    del "%INSTALL_FLAG%"
+) else (
+    echo [*] Installation flag not found. No action needed.
+    echo [*] The main script will install dependencies on its next run.
 )
 
-REM Activate the virtual environment
-call "%VENV_DIR%\Scripts\activate.bat"
-
-REM Upgrade pip
-echo [*] Upgrading pip...
-python -m pip install --upgrade pip
-
-REM Upgrade gallery-dl
-echo [*] Upgrading gallery-dl...
-pip install --upgrade gallery-dl
-
-echo [*] Update process finished.
+echo.
+echo [*] Update flag set. Run dl.cmd to apply updates.
 
 endlocal
 pause
