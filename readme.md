@@ -17,6 +17,7 @@ This project provides a set of tools to simplify downloading artworks from sites
 -   Automated setup of a Python virtual environment.
 -   Scripts for downloading (`dl.cmd`, `dl.sh`) and updating (`dl.update.cmd`, `dl.update.sh`).
 -   Keeps a history of downloaded files to avoid duplicates.
+-   Displays a progress bar for downloads.
 -   Chrome extension to select multiple artworks and export their IDs.
 
 ### 📋 Prerequisites
@@ -88,6 +89,7 @@ The extension helps you quickly grab artwork IDs from a Pixiv user's page.
 -   自動設定 Python 虛擬環境。
 -   用於下載 (`dl.cmd`, `dl.sh`) 和更新 (`dl.update.cmd`, `dl.update.sh`) 的腳本。
 -   記錄已下載檔案的歷史，避免重複下載。
+-   顯示下載進度條。
 -   Chrome 擴充功能，用於選擇多個作品並匯出其 ID。
 
 ### 📋 先決條件
@@ -159,6 +161,7 @@ The extension helps you quickly grab artwork IDs from a Pixiv user's page.
 -   Python 仮想環境の自動セットアップ。
 -   ダウンロード用 (`dl.cmd`, `dl.sh`) および更新用 (`dl.update.cmd`, `dl.update.sh`) のスクリプト。
 -   重複を避けるためにダウンロードしたファイルの履歴を保持します。
+-   ダウンロードの進捗状況バーを表示します。
 -   複数の作品を選択してその ID をエクスポートするための Chrome 拡張機能。
 
 ### 📋 前提条件

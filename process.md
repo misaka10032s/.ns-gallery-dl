@@ -50,10 +50,11 @@
     -   若非強制下載模式，則檢查該 URL 是否已存在於 `downloaded_all` 集合 (來自 `history.json`)，若存在則跳過。
 
 4.  **執行下載 (`module/fetch.py`)**:
+    -   **特定網站處理**: 若 URL 為 `nhentai.net` 或 `wnacg.com`，則呼叫對應的下載函數，並顯示圖片下載進度條。
     -   **認證處理**: 若 URL 為 Pixiv 網址，則透過 `get_pixiv_token` 取得 `refresh-token`，並將其設定於環境變數 `GALLERYDL_PIXIV_REFRESH_TOKEN` 中。
     -   **子程序呼叫**: 透過 `subprocess.run` 呼叫 `gallery-dl` 執行下載。
         -   `check=True`: 確保下載失敗時會拋出 `CalledProcessError` 例外。
-        -   `capture_output=True`: 捕獲 `stdout` 與 `stderr` 以便於錯誤分析。
+        -   `gallery-dl` 的原生進度條會直接顯示在終端機中。
     -   **重試機制**:
         -   若下載失敗 (捕獲 `CalledProcessError`)，則進行重試，最多 `MAX_RETRIES` (10) 次。
         -   若錯誤訊息包含 `timed out` 或 `connection`，則判定為網路問題，延遲 `RETRY_DELAY` (5) 秒後重試。
@@ -72,7 +73,7 @@
 -   `dl.cmd` / `dl.sh`: 提供跨平台的便捷執行入口，管理虛擬環境與依賴。
 -   `dl.update.cmd` / `dl.update.sh`: 手動更新 `pip` 與 `gallery-dl` 的腳本。
 -   `dl.txt`: 使用者輸入的下載目標清單。
--   `requirements.txt`: Python 依賴描述檔 (目前為空，主要依賴為 `gallery-dl`)。
+-   `requirements.txt`: Python 依賴描述檔，包含 `requests`, `beautifulsoup4`, `cloudscraper`, `lxml`, `tqdm`。
 -   `history.json`: JSON 格式的下載歷史紀錄。
 -   `token.json`: 儲存外部服務 (如 Pixiv) 的 OAuth `refresh-token`。
 
@@ -87,6 +88,8 @@
 
 -   `pixiv.py`: 專門處理 Pixiv 的 OAuth 認證流程。
     -   當 `token.json` 中無 `refresh-token` 或 token 失效時，會呼叫 `gallery-dl oauth:pixiv` 讓使用者重新認證，並自動從 `~/.config/gallery-dl/config.json` 讀取新 token。
+-   `nhentai.py`: 處理 `nhentai.net` 的下載，包含圖片下載進度條。
+-   `wnacg.py`: 處理 `wnacg.com` 的下載，包含圖片下載進度條。
 
 ### `chromeExtension/` - Chrome 擴充功能
 

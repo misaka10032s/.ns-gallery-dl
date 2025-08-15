@@ -1,9 +1,8 @@
 import sys
 import os
-import threading
-import time
-import itertools
 import subprocess
+import time
+from tqdm import tqdm
 from .site.pixiv import get_pixiv_token
 from .site.nhentai import download_nhentai
 from .site.wnacg import download_wnacg
@@ -15,25 +14,11 @@ def try_download(url, tokens):
     if "wnacg.com" in url.lower():
         return download_wnacg(url, tokens)
         
-    stop_animation = False
-
-    def animate():
-        for dots in itertools.cycle([".  ", ".. ", "..."]):
-            if stop_animation:
-                break
-            sys.stdout.write(f"\rdownload: {url} {dots}")
-            sys.stdout.flush()
-            time.sleep(0.5)
-
     for attempt in range(1, MAX_RETRIES + 1):
-        stop_animation = False
-        anim_thread = threading.Thread(target=animate)
-        anim_thread.start()
-
         if attempt > 1:
             if attempt > 2:
                 time.sleep(RETRY_DELAY)
-            sys.stdout.write(f"\r[Retry {attempt}/{MAX_RETRIES}] 重新嘗試下載: {url}\n")
+            sys.stdout.write(f"\r[Retry {attempt}/{MAX_RETRIES}] Retrying download: {url}\n")
             sys.stdout.flush()
 
         try:
@@ -43,32 +28,72 @@ def try_download(url, tokens):
                 if token:
                     env["GALLERYDL_PIXIV_REFRESH_TOKEN"] = token
 
-            subprocess.run(
-                ["gallery-dl", url, "-d", DOWNLOAD_DIR],
-                check=True,
+            # Step 1: Simulate to get total file count
+            simulate_cmd = ["gallery-dl", "--simulate", url]
+            simulate_process = subprocess.run(
+                simulate_cmd,
                 capture_output=True,
                 text=True,
-                env=env
+                env=env,
+                encoding='utf-8'
             )
-            stop_animation = True
-            anim_thread.join()
-            sys.stdout.write(f"\rdownload: {url} complete\n")
-            sys.stdout.flush()
-            return "success"
+            
+            if simulate_process.returncode != 0:
+                error_msg = (simulate_process.stderr or simulate_process.stdout or "").lower()
+                if "pixiv" in url.lower() and "'refresh-token' required" in error_msg:
+                    get_pixiv_token(tokens) # Refresh token and retry
+                    continue
+                else:
+                    print(f"[!] Simulation failed: {error_msg.strip() or 'Unknown error'}")
+                    continue
 
-        except subprocess.CalledProcessError as e:
-            stop_animation = True
-            anim_thread.join()
-            error_msg = (e.stderr or e.stdout or "").lower()
-            if "pixiv" in url.lower() and "'refresh-token' required" in error_msg:
-                get_pixiv_token(tokens)
-                continue
-            elif "timed out" in error_msg or "connection" in error_msg:
-                print(f"[!] 連線錯誤，將重試: {error_msg.strip()}")
-                continue
+            # output format: 
+            # # url1
+            # # url2
+            # # url3 ...
+            # they all start with `# ` so we should slice the strings from the 2nd character
+            total_files = len([line[2:] for line in simulate_process.stdout.splitlines()])
+            if total_files == 0:
+                print(f"[*] No new files to download for {url}")
+                return "success"
+
+            # Step 2: Run the actual download with Popen and tqdm
+            download_cmd = ["gallery-dl", url, "-d", DOWNLOAD_DIR]
+            process = subprocess.Popen(
+                download_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=env,
+                encoding='utf-8',
+                errors='replace'
+            )
+            with tqdm(total=total_files, desc=f"Downloading {os.path.basename(url)}", unit="file") as pbar:
+                for line in iter(process.stdout.readline, ''):
+                    # Update progress bar when a file is saved
+                    if DOWNLOAD_DIR in line:
+                        pbar.update(1)
+            
+            process.wait()
+
+            if process.returncode == 0:
+                return "success"
             else:
-                print(f"[!] 下載失敗: {error_msg.strip() or '未知錯誤'}")
-                continue
+                stderr_output = process.stderr.read()
+                error_msg = stderr_output.lower()
+                if "pixiv" in url.lower() and "'refresh-token' required" in error_msg:
+                    get_pixiv_token(tokens)
+                    continue
+                elif "timed out" in error_msg or "connection" in error_msg:
+                    print(f"[!] Connection error, will retry: {error_msg.strip()}")
+                    continue
+                else:
+                    print(f"[!] Download failed: {error_msg.strip() or 'Unknown error'}")
+                    continue
+
+        except Exception as e:
+            print(f"[!] An unexpected error occurred: {e}")
+            continue
 
     return "failed"
 
@@ -88,7 +113,7 @@ def parse_urls():
     urls = []
     for line in raw_lines:
         line = line.strip().replace(" ", "")
-        if not line:
+        if not line or line.startswith("#"):
             continue
 
         if line.startswith("pw") and line[2:].isdigit():

@@ -6,6 +6,7 @@ from threading import Thread, BoundedSemaphore
 from time import sleep
 from urllib.parse import unquote
 from pathlib import Path
+from tqdm import tqdm
 
 from ..tokens import save_tokens, load_tokens
 from ..config import MAX_DOWNLOAD_THREADS
@@ -20,17 +21,25 @@ def get_nhentai_cookies(tokens):
     return {}
 
 def remove_illegal_chars(filename):
-    return re.sub(r'[\\/*?:\"<>|]','', filename)
+    """Removes characters that are invalid for filenames."""
+    cleaned = re.sub(r'[\\/*?:",<>|]', '', filename)
+    cleaned = cleaned.strip('. ')
+    cleaned = cleaned[:150]
+    return cleaned
 
-def download_image_worker(session, url, path, semaphore):
+def download_image_worker(session, url, path, semaphore, pbar, failed_downloads):
     try:
         response = session.get(url, timeout=10)
         if response.status_code == 200:
             with open(path, 'wb') as f:
                 f.write(response.content)
-            return True
+            pbar.update(1)
+        else:
+            print(f"Failed to download {url} - Status: {response.status_code}")
+            failed_downloads.append(url)
     except Exception as e:
         print(f"Failed to download {url}: {e}")
+        failed_downloads.append(url)
     finally:
         semaphore.release()
 
@@ -103,27 +112,31 @@ def download_nhentai(url, tokens):
         
         image_urls.append(full_image_url)
 
-    print(f"Found {len(image_urls)} images for '{title}'.")
-
     threads = []
     semaphore = BoundedSemaphore(MAX_DOWNLOAD_THREADS)
-    for i, img_url in enumerate(image_urls):
-        file_extension = Path(img_url).suffix
-        file_path = download_dir / f"{i+1:03d}{file_extension}"
-        
-        if os.path.exists(file_path):
-            continue
+    failed_downloads = []
+    print(f"({len(image_urls): 4} images) Downloading '{title}'")
+    with tqdm(total=len(image_urls)) as pbar:
+        for i, img_url in enumerate(image_urls):
+            file_extension = Path(img_url).suffix
+            file_path = download_dir / f"{i+1:03d}{file_extension}"
+            
+            if os.path.exists(file_path):
+                pbar.update(1)
+                continue
 
-        semaphore.acquire()
-        thread = Thread(target=download_image_worker, args=(scraper, img_url, file_path, semaphore))
-        threads.append(thread)
-        thread.start()
+            semaphore.acquire()
+            thread = Thread(target=download_image_worker, args=(scraper, img_url, file_path, semaphore, pbar, failed_downloads))
+            threads.append(thread)
+            thread.start()
 
-    for thread in threads:
-        thread.join()
+        for thread in threads:
+            thread.join()
 
+    if failed_downloads:
+        print(f"\n[!] Failed to download {len(failed_downloads)} image(s).")
+        return "failed"
 
-    print(f"Download complete for '{title}'.")
     return "success"
 
 if __name__ == '__main__':
