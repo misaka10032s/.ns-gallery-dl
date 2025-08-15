@@ -68,7 +68,7 @@ def try_download(url, tokens):
                 encoding='utf-8',
                 errors='replace'
             )
-            with tqdm(total=total_files, desc=f"Downloading {os.path.basename(url)}", unit="file") as pbar:
+            with tqdm(total=total_files, desc=f"Downloading {url}", unit="file") as pbar:
                 for line in iter(process.stdout.readline, ''):
                     # Update progress bar when a file is saved
                     if DOWNLOAD_DIR in line:

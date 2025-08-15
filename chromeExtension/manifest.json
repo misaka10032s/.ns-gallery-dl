@@ -57,6 +57,18 @@
             "css": [
                 "wnacg/style.css"
             ]
+        },
+        {
+            "matches": [
+                "https://yande.re/post",
+                "https://yande.re/post?tags=*"
+            ],
+            "js": [
+                "yande.re/content.js"
+            ],
+            "css": [
+                "yande.re/style.css"
+            ]
         }
     ]
 }

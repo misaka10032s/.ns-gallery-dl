@@ -1,0 +1,22 @@
+
+.artwork-checkbox {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    z-index: 999;
+    width: 20px;
+    height: 20px;
+}
+
+#ns-export-button {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    z-index: 1000;
+    padding: 10px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
