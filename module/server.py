@@ -1,10 +1,37 @@
 from flask import Flask, request, jsonify
-import os
+from .fetch import try_download
+from .tokens import load_tokens
+from .history import add_to_history, filter_by_history
+import threading
+from queue import Queue
 
 app = Flask(__name__)
 
-# Assuming the script is run from the project root
-INPUT_FILE = os.path.abspath('dl.txt')
+# Queue to hold download tasks
+download_queue = Queue()
+tokens = load_tokens()
+
+def worker():
+    """Worker thread that processes the download queue."""
+    while True:
+        link = download_queue.get()
+        if link is None:
+            break
+        links = filter_by_history([link])
+        if not links:
+            print(f"[*] Skipping already downloaded: {link}")
+            download_queue.task_done()
+            continue
+        else:
+            link = links[0]  # Get the first link after filtering
+
+        print(f"[*] Starting download for: {link}")
+        result = try_download(link)
+
+        print(f"[*] Download result for {link}: {result}")
+        add_to_history([{"url": link, "result": result}])
+        
+        download_queue.task_done()
 
 @app.route('/download', methods=['POST'])
 def download():
@@ -16,18 +43,16 @@ def download():
     if not isinstance(links, list):
         return jsonify({'error': '"links" must be a list of strings.'}), 400
 
-    try:
-        with open(INPUT_FILE, 'a', encoding='utf-8') as f:
-            for link in links:
-                f.write(f"{link}\n")
-        print(f"[*] Received {len(links)} links. Added to {INPUT_FILE}.")
-        return jsonify({'message': f'Successfully added {len(links)} links to {INPUT_FILE}.'}), 200
-    except Exception as e:
-        print(f"[!] Error writing to file: {e}")
-        return jsonify({'error': f'Failed to write to file: {e}'}), 500
+    for link in links:
+        download_queue.put(link)
+    
+    print(f"[*] Queued {len(links)} links for download.")
+    return jsonify({'message': f'Queued {len(links)} links for download.'}), 202
+
+# Start the worker thread
+threading.Thread(target=worker, daemon=True).start()
 
 if __name__ == '__main__':
     print(f"[*] Starting Flask server...")
-    print(f"[*] Listening for links to add to {INPUT_FILE}")
     app.run(host='127.0.0.1', port=7601)
 

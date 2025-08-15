@@ -3,12 +3,17 @@ import os
 import subprocess
 import time
 from tqdm import tqdm
+from datetime import datetime
+from .tokens import load_tokens
+from .history import filter_by_history, add_to_history
 from .site.pixiv import get_pixiv_token
 from .site.nhentai import download_nhentai
 from .site.wnacg import download_wnacg
 from .config import DOWNLOAD_DIR, MAX_RETRIES, RETRY_DELAY, INPUT_FILE
 
-def try_download(url, tokens):
+def try_download(url):
+    tokens = load_tokens()
+
     if "nhentai.net" in url.lower():
         return download_nhentai(url, tokens)
     if "wnacg.com" in url.lower():
@@ -98,7 +103,7 @@ def try_download(url, tokens):
     return "failed"
 
 
-def parse_urls():
+def parse_urls(isForce = False):
     if not os.path.exists(INPUT_FILE):
         with open(INPUT_FILE, "w", encoding="utf-8") as f:
             pass  # Create the file
@@ -129,5 +134,23 @@ def parse_urls():
         else:
             url = f"https://{line}"
 
-        urls.append(url)
+            urls.append(url)
+
+    if not isForce:
+        urls = filter_by_history(urls)
     return urls
+
+def try_download_loop():
+    new_history = []
+    urls = parse_urls()
+        
+    for url in urls:
+        result = try_download(url)
+        new_history.append({"url": url, "result": result})
+
+        if result == "success":
+            print(f"[*] Download successful: {url}")
+        else:
+            print(f"[!] Download failed: {url}")
+
+    add_to_history(new_history)
