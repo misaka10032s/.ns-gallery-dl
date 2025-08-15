@@ -73,7 +73,7 @@
 -   **支援網站**: Pixiv, nhentai, wnacg, yande.re。
 -   `background.js`: 擴充功能的核心。
     -   接收來自 `content.js` 的 URL 列表。
-    -   優先嘗試透過 `fetch` API 將 URL 發送到 `http://127.0.0.1:5001/download`。
+    -   優先嘗試透過 `fetch` API 將 URL 發送到 `http://127.0.0.1:7601/download`。
     -   若伺服器請求失敗，則會降級，將 URL 複製到剪貼簿，並顯示桌面通知。
 -   `content.js` (各網站): 在頁面上注入 checkbox 和 "Export" 按鈕。
--   `manifest.json`: 設定檔，定義權限，包含 `http://127.0.0.1:5001/*` 的主機權限。
+-   `manifest.json`: 設定檔，定義權限，包含 `http://127.0.0.1:7601/*` 的主機權限。

@@ -100,7 +100,7 @@ This will download all the URLs collected in `dl.txt`.
 -   **進度條**：為所有下載任務顯示進度條。
 -   **歷史紀錄**：避免重複下載檔案。
 
-### 📋 先決條件
+### 📋 需先安裝
 
 -   [Python 3](https://www.python.org/downloads/)
 
@@ -174,7 +174,7 @@ This will download all the URLs collected in `dl.txt`.
 -   **プログレスバー**：すべてのダウンロードの進捗状況を表示します。
 -   **履歴**：ファイルの再ダウンロードを防ぎます。
 
-### 📋 前提条件
+### 📋 事前インストール
 
 -   [Python 3](https://www.python.org/downloads/)
 

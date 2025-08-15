@@ -49,25 +49,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         } catch (error) {
             console.warn('Could not connect to local server. Falling back to clipboard.', error);
             
-            if (hasDoc) {
-                const dataToCopy = urls.join('\n') + '\n';
-                chrome.runtime.sendMessage({
-                    target: 'offscreen',
-                    type: 'copy-to-clipboard',
-                    data: dataToCopy
-                });
+            chrome.offscreen.hasDocument().then(hasDoc => {
+              if (hasDoc) {
+                  const dataToCopy = urls.join('\n') + '\n';
+                  chrome.runtime.sendMessage({
+                      target: 'offscreen',
+                      type: 'copy-to-clipboard',
+                      data: dataToCopy
+                  });
 
-                // Create a more informative notification
-                const siteName = new URL(sender.tab.url).hostname.replace('www.', '');
-                const capitalizedSiteName = siteName.charAt(0).toUpperCase() + siteName.slice(1);
+                  // Create a more informative notification
+                  const siteName = new URL(sender.tab.url).hostname.replace('www.', '');
+                  const capitalizedSiteName = siteName.charAt(0).toUpperCase() + siteName.slice(1);
 
-                chrome.notifications.create({
-                    type: 'basic',
-                    iconUrl: sender.tab.favIconUrl || 'pixiv/favicon.ico', // Fallback icon
-                    title: `${capitalizedSiteName} URLs Copied`,
-                    message: `${urls.length} URL(s) have been copied to the clipboard.`
-                });
-            }
+                  chrome.notifications.create({
+                      type: 'basic',
+                      iconUrl: sender.tab.favIconUrl || 'pixiv/favicon.ico', // Fallback icon
+                      title: `${capitalizedSiteName} URLs Copied`,
+                      message: `${urls.length} URL(s) have been copied to the clipboard.`
+                  });
+              }
+          });
         }
     };
 

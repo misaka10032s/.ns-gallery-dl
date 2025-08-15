@@ -20,6 +20,13 @@ if not exist "%VENV_DIR%\Scripts\activate.bat" (
 REM Activate the virtual environment
 call "%VENV_DIR%\Scripts\activate.bat"
 
+REM if -u / -update is on, do `del "%INSTALL_FLAG%"`
+if "%~1"=="-u"  (
+    del "%INSTALL_FLAG%"
+) else if "%~1"=="-update" (
+    del "%INSTALL_FLAG%"
+)
+
 set "NEEDS_INSTALL="
 if not exist "%INSTALL_FLAG%" (
     set NEEDS_INSTALL=true

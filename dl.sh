@@ -19,6 +19,11 @@ fi
 # Activate the virtual environment
 source "$VENV_DIR/bin/activate"
 
+# if -u / -update is on, remove "$INSTALL_FLAG"
+if [[ "$1" == "-u" || "$1" == "-update" ]]; then
+    rm -f "$INSTALL_FLAG"
+fi
+
 NEEDS_INSTALL=false
 if [ ! -f "$INSTALL_FLAG" ]; then
     NEEDS_INSTALL=true

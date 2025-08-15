@@ -11,17 +11,7 @@ def main():
     if any(arg.lower() in ("-s", "--server") for arg in sys.argv[1:]):
         from module.server import app
         print("[*] Starting Flask server...")
-        app.run(host='127.0.0.1', port=5001)
-        return
-
-    if any(arg.lower() in ("-u", "--update") for arg in sys.argv[1:]):
-        print("[*] Updating pip and gallery-dl...")
-        try:
-            subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "pip"], check=True)
-            subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "gallery-dl"], check=True)
-            print("[*] Update complete.")
-        except subprocess.CalledProcessError as e:
-            print(f"[!] Update failed: {e}")
+        app.run(host='127.0.0.1', port=7601)
         return
 
     force_download = any(arg.lower() in ("-f", "--force") for arg in sys.argv[1:])
