@@ -27,10 +27,28 @@ async function setupOffscreenDocument() {
 
 // Listener for download messages from content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    const handleDownload = (urls) => {
-        console.log('Received URLs for download:', urls);
+    const handleDownload = async (urls) => {
+        try {
+            const response = await fetch('http://127.0.0.1:7601/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ links: urls }),
+            });
 
-        chrome.offscreen.hasDocument().then(hasDoc => {
+            if (response.ok) {
+                const result = await response.json();
+                chrome.notifications.create({
+                    type: 'basic',
+                    iconUrl: sender.tab.favIconUrl || 'pixiv/favicon.ico',
+                    title: 'Links Sent to Server',
+                    message: result.message || `${urls.length} URL(s) sent successfully.`
+                });
+            } else {
+                throw new Error('Server responded with an error.');
+            }
+        } catch (error) {
+            console.warn('Could not connect to local server. Falling back to clipboard.', error);
+            
             if (hasDoc) {
                 const dataToCopy = urls.join('\n') + '\n';
                 chrome.runtime.sendMessage({
@@ -50,7 +68,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     message: `${urls.length} URL(s) have been copied to the clipboard.`
                 });
             }
-        });
+        }
     };
 
     if (message.type === 'downloadUrls') {

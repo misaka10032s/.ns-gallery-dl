@@ -10,15 +10,21 @@
 
 ### 🚀 Introduction
 
-This project provides a set of tools to simplify downloading artworks from sites like Pixiv, using `gallery-dl`. It includes scripts for managing downloads and a Chrome extension to easily select artworks from a user's page on Pixiv.
+This project provides a set of tools to simplify downloading artworks, using `gallery-dl`. It features a seamless workflow between a Chrome extension for selecting artworks and a local server for receiving and queuing download links.
 
 ### ✨ Features
 
--   Automated setup of a Python virtual environment.
--   Scripts for downloading (`dl.cmd`, `dl.sh`) and updating (`dl.update.cmd`, `dl.update.sh`).
--   Keeps a history of downloaded files to avoid duplicates.
--   Displays a progress bar for downloads.
--   Chrome extension to select multiple artworks and export their IDs.
+-   **Automated Environment Setup**: Scripts handle Python virtual environment creation and dependency installation.
+-   **Multiple Operation Modes**:
+    -   **Download**: Fetches artworks from a list of URLs in `dl.txt`.
+    -   **Server**: Runs a local server to listen for URLs sent from the Chrome extension.
+    -   **Update**: Keeps `pip` and `gallery-dl` up-to-date.
+-   **Chrome Extension**:
+    -   Adds checkboxes to artworks on supported sites.
+    -   Sends selected artwork URLs directly to the local server.
+    -   Falls back to copying URLs to the clipboard if the server is not running.
+-   **Progress Bars**: Displays download progress for all downloads.
+-   **History**: Avoids re-downloading files.
 
 ### 📋 Prerequisites
 
@@ -26,45 +32,41 @@ This project provides a set of tools to simplify downloading artworks from sites
 
 ### 🖥️ How to Use
 
-#### On Windows
+#### 1. Start the Server (Recommended)
 
-1.  **Run `dl.cmd`:** Double-click this file. On the first run, it will create a virtual environment and install the necessary dependencies.
-2.  **Add URLs:** Open `dl.txt` and add the artwork URLs you want to download.
-    -   For Pixiv artworks, you can use the short format `p<artwork_id>`, for example: `p12345678`.
-    -   Full URLs are also supported.
-3.  **Run again:** Run `dl.cmd` again to start the download process.
+-   **Windows**: Run `dl.server.cmd`.
+-   **Linux / macOS**: Run `chmod +x dl.server.sh` first, then `./dl.server.sh`.
 
-#### On Linux / macOS
+This will start a local server that waits for links from the Chrome extension.
 
-1.  **Make script executable:** Open a terminal and run `chmod +x dl.sh`.
-2.  **Run `./dl.sh`:** On the first run, it will create a virtual environment and install the necessary dependencies.
-3.  **Add URLs:** Open `dl.txt` and add the artwork URLs you want to download.
-    -   For Pixiv artworks, you can use the short format `p<artwork_id>`, for example: `p12345678`.
-    -   Full URLs are also supported.
-4.  **Run again:** Run `./dl.sh` again to start the download process.
+#### 2. Use the Chrome Extension
+
+-   Install the extension (see below).
+-   Browse to a supported site, select artworks using the checkboxes, and click "Export".
+-   The links will be automatically sent to the server and added to `dl.txt`.
+
+#### 3. Run the Downloader
+
+-   **Windows**: Run `dl.cmd`.
+-   **Linux / macOS**: Run `chmod +x dl.sh` first, then `./dl.sh`.
+
+This will download all the URLs collected in `dl.txt`.
 
 ### 🔄 How to Update
 
-To update `pip` and `gallery-dl` to their latest versions:
-
--   **Windows:** Run `dl.update.cmd`.
--   **Linux / macOS:** Run `./dl.update.sh` (you may need to run `chmod +x dl.update.sh` first).
+-   **Windows**: Run `dl.update.cmd`.
+-   **Linux / macOS**: Run `chmod +x dl.update.sh` first, then `./dl.update.sh`.
 
 ### 🧩 Chrome Extension
 
-The extension helps you quickly grab artwork IDs from a Pixiv user's page.
-
 1.  **Installation:**
     -   Open Chrome and navigate to `chrome://extensions`.
-    -   Enable **Developer mode** in the top-right corner.
-    -   Click **Load unpacked**.
-    -   Select the `chromeExtension` folder from this project.
+    -   Enable **Developer mode**.
+    -   Click **Load unpacked** and select the `chromeExtension` folder.
 2.  **Usage:**
-    -   Go to a Pixiv user's page (e.g., `https://www.pixiv.net/users/12345`).
+    -   Go to a supported site.
     -   Checkboxes will appear on each artwork. Select the ones you want.
-    -   Click the **Export** button in the bottom-left corner.
-    -   A dialog will appear with the selected artwork IDs. Copy this list.
-    -   Paste the IDs into `dl.txt`, one per line, using the `p<artwork_id>` format.
+    -   Click the **Export** button. The links will be sent to your local server.
 
 ### 🌐 Supported Sites
 
@@ -82,15 +84,21 @@ The extension helps you quickly grab artwork IDs from a Pixiv user's page.
 
 ### 🚀 簡介
 
-該專案提供了一套工具，可使用 `gallery-dl` 簡化從 Pixiv 等網站下載作品的過程。它包含用於管理下載的腳本和一個 Chrome 擴充功能，可輕鬆地從 Pixiv 的使用者頁面選擇作品。
+本專案提供一套使用 `gallery-dl` 的工具，旨在簡化下載作品的流程。它整合了 Chrome 擴充功能（用於選擇作品）和本機伺服器（用於接收和排隊下載連結），提供無縫的工作體驗。
 
 ### ✨ 功能
 
--   自動設定 Python 虛擬環境。
--   用於下載 (`dl.cmd`, `dl.sh`) 和更新 (`dl.update.cmd`, `dl.update.sh`) 的腳本。
--   記錄已下載檔案的歷史，避免重複下載。
--   顯示下載進度條。
--   Chrome 擴充功能，用於選擇多個作品並匯出其 ID。
+-   **自動化環境設定**：腳本會自動處理 Python 虛擬環境的建立和依賴項安裝。
+-   **多種操作模式**：
+    -   **下載**：從 `dl.txt` 中的 URL 列表下載作品。
+    -   **伺服器**：執行本機伺服器，以接收從 Chrome 擴充功能傳送的 URL。
+    -   **更新**：保持 `pip` 和 `gallery-dl` 為最新版本。
+-   **Chrome 擴充功能**：
+    -   在支援的網站上為作品新增核取方塊。
+    -   將選定的作品 URL 直接傳送到本機伺服器。
+    -   如果伺服器未執行，則會降級為將 URL 複製到剪貼簿。
+-   **進度條**：為所有下載任務顯示進度條。
+-   **歷史紀錄**：避免重複下載檔案。
 
 ### 📋 先決條件
 
@@ -98,45 +106,41 @@ The extension helps you quickly grab artwork IDs from a Pixiv user's page.
 
 ### 🖥️ 如何使用
 
-#### 在 Windows 上
+#### 1. 啟動伺服器（建議）
 
-1.  **執行 `dl.cmd`:** 雙擊此檔案。首次執行時，它將建立一個虛擬環境並安裝必要的依賴項。
-2.  **新增 URL:** 開啟 `dl.txt` 並新增您要下載的作品 URL。
-    -   對於 Pixiv 作品，您可以使用簡短格式 `p<作品_id>`，例如：`p12345678`。
-    -   也支援完整的 URL。
-3.  **再次執行:** 再次執行 `dl.cmd` 以開始下載過程。
+-   **Windows**：執行 `dl.server.cmd`。
+-   **Linux / macOS**：先執行 `chmod +x dl.server.sh`，然後執行 `./dl.server.sh`。
 
-#### 在 Linux / macOS 上
+這將啟動一個本機伺服器，等待從 Chrome 擴充功能傳來的連結。
 
-1.  **使腳本可執行:** 開啟終端機並執行 `chmod +x dl.sh`。
-2.  **執行 `./dl.sh`:** 首次執行時，它將建立一個虛擬環境並安裝必要的依賴項。
-3.  **新增 URL:** 開啟 `dl.txt` 並新增您要下載的作品 URL。
-    -   對於 Pixiv 作品，您可以使用簡短格式 `p<作品_id>`，例如：`p12345678`。
-    -   也支援完整的 URL。
-4.  **再次執行:** 再次執行 `./dl.sh` 以開始下載過程。
+#### 2. 使用 Chrome 擴充功能
+
+-   安裝擴充功能（見下文）。
+-   瀏覽支援的網站，使用核取方塊選擇作品，然後點擊「Export」。
+-   連結將自動傳送到伺服器並新增到 `dl.txt`。
+
+#### 3. 執行下載器
+
+-   **Windows**：執行 `dl.cmd`。
+-   **Linux / macOS**：先執行 `chmod +x dl.sh`，然後執行 `./dl.sh`。
+
+這將下載 `dl.txt` 中收集的所有 URL。
 
 ### 🔄 如何更新
 
-要將 `pip` 和 `gallery-dl` 更新到最新版本：
-
--   **Windows:** 執行 `dl.update.cmd`。
--   **Linux / macOS:** 執行 `./dl.update.sh` (您可能需要先執行 `chmod +x dl.update.sh`)。
+-   **Windows**：執行 `dl.update.cmd`。
+-   **Linux / macOS**：先執行 `chmod +x dl.update.sh`，然後執行 `./dl.update.sh`。
 
 ### 🧩 Chrome 擴充功能
 
-該擴充功能可幫助您從 Pixiv 使用者頁面快速獲取作品 ID。
-
-1.  **安裝:**
-    -   開啟 Chrome 並導覽至 `chrome://extensions`。
-    -   在右上角啟用 **開發者模式**。
-    -   點擊 **載入未封裝的擴充功能**。
-    -   從此專案中選擇 `chromeExtension` 資料夾。
-2.  **使用:**
-    -   前往 Pixiv 使用者頁面 (例如, `https://www.pixiv.net/users/12345`)。
+1.  **安裝**：
+    -   開啟 Chrome 並前往 `chrome://extensions`。
+    -   啟用 **開發者模式**。
+    -   點擊 **載入未封裝的擴充功能** 並選擇 `chromeExtension` 資料夾。
+2.  **使用**：
+    -   前往支援的網站。
     -   每個作品上都會出現核取方塊。選擇您想要的。
-    -   點擊左下角的 **Export** 按鈕。
-    -   將出現一個包含所選作品 ID 的對話方塊。複製此列表。
-    -   將 ID 貼到 `dl.txt` 中，每行一個，使用 `p<作品_id>` 格式。
+    -   點擊 **Export** 按鈕。連結將被傳送到您的本機伺服器。
 
 ### 🌐 支援的網站
 
@@ -154,15 +158,21 @@ The extension helps you quickly grab artwork IDs from a Pixiv user's page.
 
 ### 🚀 概要
 
-このプロジェクトは、`gallery-dl` を使用して Pixiv などのサイトから作品を簡単にダウンロードするための一連のツールを提供します。ダウンロードを管理するためのスクリプトと、Pixiv のユーザーページから作品を簡単に選択するための Chrome 拡張機能が含まれています。
+このプロジェクトは、`gallery-dl` を使用して作品のダウンロードを簡素化するための一連のツールを提供します。作品を選択するためのChrome拡張機能と、ダウンロードリンクを受信してキューに入れるためのローカルサーバーとの間でシームレスなワークフローを実現します。
 
 ### ✨ 機能
 
--   Python 仮想環境の自動セットアップ。
--   ダウンロード用 (`dl.cmd`, `dl.sh`) および更新用 (`dl.update.cmd`, `dl.update.sh`) のスクリプト。
--   重複を避けるためにダウンロードしたファイルの履歴を保持します。
--   ダウンロードの進捗状況バーを表示します。
--   複数の作品を選択してその ID をエクスポートするための Chrome 拡張機能。
+-   **自動環境設定**：スクリプトがPython仮想環境の作成と依存関係のインストールを自動的に処理します。
+-   **複数の操作モード**：
+    -   **ダウンロード**：`dl.txt` のURLリストから作品を取得します。
+    -   **サーバー**：Chrome拡張機能から送信されたURLを待ち受けるローカルサーバーを実行します。
+    -   **更新**：`pip` と `gallery-dl` を最新の状態に保ちます。
+-   **Chrome拡張機能**：
+    -   対応サイトの作品にチェックボックスを追加します。
+    -   選択した作品のURLをローカルサーバーに直接送信します。
+    -   サーバーが実行されていない場合は、URLをクリップボードにコピーするフォールバック機能があります。
+-   **プログレスバー**：すべてのダウンロードの進捗状況を表示します。
+-   **履歴**：ファイルの再ダウンロードを防ぎます。
 
 ### 📋 前提条件
 
@@ -170,45 +180,41 @@ The extension helps you quickly grab artwork IDs from a Pixiv user's page.
 
 ### 🖥️ 使用方法
 
-#### Windows の場合
+#### 1. サーバーを起動する（推奨）
 
-1.  **`dl.cmd` を実行:** このファイルをダブルクリックします。初回実行時に、仮想環境が作成され、必要な依存関係がインストールされます。
-2.  **URL を追加:** `dl.txt` を開き、ダウンロードしたい作品の URL を追加します。
-    -   Pixiv の作品の場合、`p<作品_id>` という短い形式を使用できます。例：`p12345678`。
-    -   完全な URL もサポートされています。
-3.  **再実行:** 再度 `dl.cmd` を実行して、ダウンロードプロセスを開始します。
+-   **Windows**：`dl.server.cmd` を実行します。
+-   **Linux / macOS**：最初に `chmod +x dl.server.sh` を実行し、次に `./dl.server.sh` を実行します。
 
-#### Linux / macOS の場合
+これにより、Chrome拡張機能からのリンクを待つローカルサーバーが起動します。
 
-1.  **スクリプトを実行可能にする:** ターミナルを開き、`chmod +x dl.sh` を実行します。
-2.  **`./dl.sh` を実行:** 初回実行時に、仮想環境が作成され、必要な依存関係がインストールされます。
-3.  **URL を追加:** `dl.txt` を開き、ダウンロードしたい作品の URL を追加します。
-    -   Pixiv の作品の場合、`p<作品_id>` という短い形式を使用できます。例：`p12345678`。
-    -   完全な URL もサポートされています。
-4.  **再実行:** 再度 `./dl.sh` を実行して、ダウンロードプロセスを開始します。
+#### 2. Chrome拡張機能を使用する
+
+-   拡張機能をインストールします（下記参照）。
+-   対応サイトを閲覧し、チェックボックスで作品を選択して「Export」をクリックします。
+-   リンクは自動的にサーバーに送信され、`dl.txt` に追加されます。
+
+#### 3. ダウンローダーを実行する
+
+-   **Windows**：`dl.cmd` を実行します。
+-   **Linux / macOS**：最初に `chmod +x dl.sh` を実行し、次に `./dl.sh` を実行します。
+
+これにより、`dl.txt` に収集されたすべてのURLがダウンロードされます。
 
 ### 🔄 更新方法
 
-`pip` と `gallery-dl` を最新バージョンに更新するには：
-
--   **Windows:** `dl.update.cmd` を実行します。
--   **Linux / macOS:** `./dl.update.sh` を実行します (最初に `chmod +x dl.update.sh` を実行する必要がある場合があります)。
+-   **Windows**：`dl.update.cmd` を実行します。
+-   **Linux / macOS**：最初に `chmod +x dl.update.sh` を実行し、次に `./dl.update.sh` を実行します。
 
 ### 🧩 Chrome 拡張機能
 
-この拡張機能は、Pixiv ユーザーページから作品 ID をすばやく取得するのに役立ちます。
-
-1.  **インストール:**
-    -   Chrome を開き、`chrome://extensions` に移動します。
-    -   右上隅にある **デベロッパーモード** を有効にします。
-    -   **パッケージ化されていない拡張機能を読み込む** をクリックします。
-    -   このプロジェクトから `chromeExtension` フォルダを選択します。
-2.  **使用法:**
-    -   Pixiv ユーザーページに移動します (例: `https://www.pixiv.net/users/12345`)。
-    -   各作品にチェックボックスが表示されます。必要なものを選択します。
-    -   左下隅にある **Export** ボタンをクリックします。
-    -   選択した作品 ID を含むダイアログが表示されます。このリストをコピーします。
-    -   ID を `dl.txt` に貼り付けます。1行に1つずつ、`p<作品_id>` 形式を使用します。
+1.  **インストール**：
+    -   Chromeを開き、`chrome://extensions` に移動します。
+    -   **デベロッパーモード** を有効にします。
+    -   **パッケージ化されていない拡張機能を読み込む** をクリックし、`chromeExtension` フォルダを選択します。
+2.  **使用法**：
+    -   対応サイトにアクセスします。
+    -   各作品にチェックボックスが表示されます。希望のものを選択します。
+    -   **Export** ボタンをクリックします。リンクがローカルサーバーに送信されます。
 
 ### 🌐 対応サイト
 

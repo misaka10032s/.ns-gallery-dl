@@ -1,3 +1,3 @@
 @echo off
-call dl.cmd -u
+call dl.cmd -s
 pause
