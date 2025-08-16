@@ -10,6 +10,14 @@ def load_history():
     return {}
 
 def save_history(history):
+    # filter same url of the same day, preserve the last status
+    for date, entries in history.items():
+        seen = {}
+        for entry in entries:
+            if entry["url"] not in seen:
+                seen[entry["url"]] = entry
+        history[date] = list(seen.values())
+
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(history, f, ensure_ascii=False, indent=2)
 

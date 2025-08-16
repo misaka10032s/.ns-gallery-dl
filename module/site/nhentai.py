@@ -73,7 +73,7 @@ def download_nhentai(url, tokens):
         return "failed"
     
     gallery_id = gallery_id_match.group(1)
-    download_dir = Path("download") / "nhentai" / f"{gallery_id}_{title}"
+    download_dir = Path("download") / "nhentai" / f"{gallery_id}_{title}".strip()
     os.makedirs(download_dir, exist_ok=True)
 
     thumbnails = soup.find_all('a', class_='gallerythumb')
@@ -119,7 +119,7 @@ def download_nhentai(url, tokens):
     with tqdm(total=len(image_urls)) as pbar:
         for i, img_url in enumerate(image_urls):
             file_extension = Path(img_url).suffix
-            file_path = download_dir / f"{i+1:03d}{file_extension}"
+            file_path = download_dir / f"{i+1:03d}{file_extension}".strip()
             
             if os.path.exists(file_path):
                 pbar.update(1)

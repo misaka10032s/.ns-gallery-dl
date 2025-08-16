@@ -127,6 +127,10 @@ def parse_urls(isForce = False):
             url = f"https://www.pixiv.net/users/{line[2:]}"
         elif line.startswith("p") and line[1:].isdigit():
             url = f"https://www.pixiv.net/artworks/{line[1:]}"
+        elif line.startswith("w") and line[1:].isdigit():
+            url = f"https://www.wnacg.com/photos-index-aid-{line[1:]}.html"
+        elif line.startswith("n") and line[1:].isdigit():
+            url = f"https://nhentai.net/g/{line[1:]}/"
         elif line.lower() == "x":
             url = "https://x.com"
         elif line.startswith("http://") or line.startswith("https://"):
@@ -134,7 +138,7 @@ def parse_urls(isForce = False):
         else:
             url = f"https://{line}"
 
-            urls.append(url)
+        urls.append(url)
 
     if not isForce:
         urls = filter_by_history(urls)
@@ -143,7 +147,7 @@ def parse_urls(isForce = False):
 def try_download_loop():
     new_history = []
     urls = parse_urls()
-        
+
     for url in urls:
         result = try_download(url)
         new_history.append({"url": url, "result": result})
