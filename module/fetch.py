@@ -151,7 +151,7 @@ def try_download_loop():
 
     for url in urls:
         result = try_download(url)
-        add_to_history({"url": url, "result": result})
+        add_to_history([{"url": url, "result": result}])
 
         if result == "success":
             print(f"[*] Download successful: {url}")
