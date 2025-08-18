@@ -18,7 +18,8 @@ def try_download(url):
         return download_nhentai(url, tokens)
     if "wnacg.com" in url.lower():
         return download_wnacg(url, tokens)
-        
+
+    print(f"[*] Starting download: {url}")
     for attempt in range(1, MAX_RETRIES + 1):
         if attempt > 1:
             if attempt > 2:
@@ -145,16 +146,14 @@ def parse_urls(isForce = False):
     return urls
 
 def try_download_loop():
-    new_history = []
     urls = parse_urls()
+    print(f'total URLs to download: {len(urls)}')
 
     for url in urls:
         result = try_download(url)
-        new_history.append({"url": url, "result": result})
+        add_to_history({"url": url, "result": result})
 
         if result == "success":
             print(f"[*] Download successful: {url}")
         else:
             print(f"[!] Download failed: {url}")
-
-    add_to_history(new_history)
