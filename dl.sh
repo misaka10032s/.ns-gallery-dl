@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/bin/bash#!/bin/bash
+echo -ne "\033]0;NS Gallery DL Machine\007"
 
 SCRIPT_VERSION="1.0.0"
 VENV_DIR="venv"

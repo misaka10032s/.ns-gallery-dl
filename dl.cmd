@@ -1,4 +1,5 @@
 @echo off
+title NS Gallery DL Machine
 setlocal enabledelayedexpansion
 
 set SCRIPT_VERSION=1.0.0
