@@ -116,7 +116,7 @@ def download_nhentai(url, tokens):
     semaphore = BoundedSemaphore(MAX_DOWNLOAD_THREADS)
     failed_downloads = []
     print(f"({len(image_urls): 4} images) Downloading '{title}'")
-    with tqdm(total=len(image_urls)) as pbar:
+    with tqdm(total=len(image_urls), desc='Downloading') as pbar:
         for i, img_url in enumerate(image_urls):
             file_extension = Path(img_url).suffix
             file_path = download_dir / f"{i+1:03d}{file_extension}".strip()

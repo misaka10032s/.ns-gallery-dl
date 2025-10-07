@@ -25,6 +25,12 @@ This project provides a set of tools to simplify downloading artworks, using `ga
     -   Falls back to copying URLs to the clipboard if the server is not running.
 -   **Progress Bars**: Displays download progress for all downloads.
 -   **History**: Avoids re-downloading files.
+-   **Interactive History Viewer**: A web interface at `/history` to view download records. It features:
+    -   Filtering by date range with quick selections for the last 1, 7, or 30 days.
+    -   Filtering by domain (e.g., pixiv.net, twitter.com) via a popup modal, with an active filter indicator.
+    -   A tri-state button to filter by status (All, Failed, Success).
+    -   Ability to select records and export the URLs as a list or a JSON array.
+    -   A "Submit Selected" button to re-send selected URLs to the download queue.
 
 ### 📋 Prerequisites
 
@@ -37,7 +43,7 @@ This project provides a set of tools to simplify downloading artworks, using `ga
 -   **Windows**: Run `dl.server.cmd`.
 -   **Linux / macOS**: Run `chmod +x dl.server.sh` first, then `./dl.server.sh`.
 
-This will start a local server that waits for links from the Chrome extension.
+This will start a local server that waits for links from the Chrome extension. You can view the history page at `http://127.0.0.1:7601/history`.
 
 #### 2. Use the Chrome Extension
 
@@ -99,6 +105,12 @@ This will download all the URLs collected in `dl.txt`.
     -   如果伺服器未執行，則會降級為將 URL 複製到剪貼簿。
 -   **進度條**：為所有下載任務顯示進度條。
 -   **歷史紀錄**：避免重複下載檔案。
+-   **互動式歷史記錄檢視器**：一個位於 `/history` 的網頁介面，用於檢視下載記錄。其功能包括：
+    -   依日期範圍篩選，並提供「近1日」、「近7日」、「近30日」的快速選項。
+    -   透過彈出視窗依網域（例如 pixiv.net, twitter.com）進行篩選，並帶有啟用狀態指示燈。
+    -   一個三段式按鈕，用於依狀態（全部、僅失敗、僅成功）篩選。
+    -   能夠選取記錄並將 URL 匯出為列表或 JSON 陣列。
+    -   一個「送出所選」按鈕，可將選取的 URL 重新傳送到下載佇列。
 
 ### 📋 需先安裝
 
@@ -111,7 +123,7 @@ This will download all the URLs collected in `dl.txt`.
 -   **Windows**：執行 `dl.server.cmd`。
 -   **Linux / macOS**：先執行 `chmod +x dl.server.sh`，然後執行 `./dl.server.sh`。
 
-這將啟動一個本機伺服器，等待從 Chrome 擴充功能傳來的連結。
+這將啟動一個本機伺服器，等待從 Chrome 擴充功能傳來的連結。您可以在 `http://127.0.0.1:7601/history` 瀏覽歷史記錄頁面。
 
 #### 2. 使用 Chrome 擴充功能
 
@@ -158,7 +170,7 @@ This will download all the URLs collected in `dl.txt`.
 
 ### 🚀 概要
 
-このプロジェクトは、`gallery-dl` を使用して作品のダウンロードを簡素化するための一連のツールを提供します。作品を選択するためのChrome拡張機能と、ダウンロードリンクを受信してキューに入れるためのローカルサーバーとの間でシームレスなワークフローを実現します。
+このプロジェクトは、`gallery-dl` を使用して作品のダウンロードを簡素化するための一連のツールを提供します。作品を選択するためのChrome拡張機能と、ダウンロードリンクを受信してキューに入れるためのローカルサーバーとの間でシSeamlessなワークフローを実現します。
 
 ### ✨ 機能
 
@@ -173,6 +185,12 @@ This will download all the URLs collected in `dl.txt`.
     -   サーバーが実行されていない場合は、URLをクリップボードにコピーするフォールバック機能があります。
 -   **プログレスバー**：すべてのダウンロードの進捗状況を表示します。
 -   **履歴**：ファイルの再ダウンロードを防ぎます。
+-   **インタラクティブ履歴ビューア**：ダウンロード履歴を閲覧するためのウェブインターフェース（`/history`）。主な機能：
+    -   日付範囲によるフィルタリング機能と、「過去1日間」「過去7日間」「過去30日間」のクイック選択。
+    -   ポップアップモーダルを介したドメイン（例：pixiv.net, twitter.com）によるフィルタリング（アクティブフィルターインジケーター付き）。
+    -   ステータス（すべて、失敗のみ、成功のみ）でフィルタリングするための3状態ボタン。
+    -   レコードを選択し、URLをリストまたはJSON配列としてエクスポートする機能。
+    -   選択したURLをダウンロードキューに再送信するための「選択を送信」ボタン。
 
 ### 📋 事前インストール
 
@@ -185,7 +203,7 @@ This will download all the URLs collected in `dl.txt`.
 -   **Windows**：`dl.server.cmd` を実行します。
 -   **Linux / macOS**：最初に `chmod +x dl.server.sh` を実行し、次に `./dl.server.sh` を実行します。
 
-これにより、Chrome拡張機能からのリンクを待つローカルサーバーが起動します。
+これにより、Chrome拡張機能からのリンクを待つローカルサーバーが起動します。履歴ページは `http://127.0.0.1:7601/history` で閲覧できます。
 
 #### 2. Chrome拡張機能を使用する
 

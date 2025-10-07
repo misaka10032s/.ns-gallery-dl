@@ -48,9 +48,8 @@
         },
         {
             "matches": [
-                "https://www.wnacg.com/*",
-                "https://www.wnacg.com/photos-view-id-*.html",
-                "https://www.wnacg.com/photos-slide-aid-*.html"
+                "https://wnacg.com/*",
+                "https://www.wnacg.com/*"
             ],
             "js": [
                 "wnacg/content.js"

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-lang-key="pageTitle">下載歷史記錄</title>
+    <link rel="stylesheet" href="/frontend/history/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="top-bar">
+            <div class="lang-selector">
+                <button data-lang-set="zh">繁體中文</button>
+                <button data-lang-set="en">English</button>
+                <button data-lang-set="ja">日本語</button>
+            </div>
+        </div>
+        <div class="filter-controls">
+            <div class="date-filters">
+                <label for="start-date" data-lang-key="filterFrom">從:</label>
+                <input type="date" id="start-date">
+                <label for="end-date" data-lang-key="filterTo">到:</label>
+                <input type="date" id="end-date">
+                <button id="btn-1-day" data-lang-key="btnLast1Day">最近 1 天</button>
+                <button id="btn-7-days" data-lang-key="btnLast7Days">最近 7 天</button>
+                <button id="btn-30-days" data-lang-key="btnLast30Days">最近 30 天</button>
+            </div>
+            <div class="action-buttons">
+                <label for="status-filter-btn" data-lang-key="filterStatus">狀態：</label>
+                <button id="status-filter-btn" data-lang-key="filterAll">全部</button>
+                <button id="open-domain-modal-btn" data-lang-key="btnFilterByDomain">依網域篩選</button>
+                <button id="clear-filters-btn" data-lang-key="btnClearFilters">清除篩選</button>
+            </div>
+        </div>
+        <div id="selected-domains-display"></div>
+        <div id="history-container" class="history-section">
+            <h1 data-lang-key="pageTitle">下載歷史記錄</h1>
+            <div id="records"></div>
+        </div>
+        <div class="output-section">
+            <div class="output-header">
+                <h2 data-lang-key="selectedUrls">選取的 URL</h2>
+                <div class="controls-wrapper">
+                    <div class="json-mode">
+                        <input type="checkbox" id="json-mode-checkbox">
+                        <label for="json-mode-checkbox" data-lang-key="jsonMode">JSON 模式</label>
+                    </div>
+                    <button id="submit-selected-btn" data-lang-key="submitSelected">送出所選</button>
+                </div>
+            </div>
+            <textarea id="output-textarea" readonly placeholder="Selected URLs will appear here..."></textarea>
+        </div>
+    </div>
+
+    <!-- Domain Filter Modal -->
+    <div id="domain-filter-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 data-lang-key="modalTitle">依網域篩選</h2>
+                <span class="close-btn">&times;</span>
+            </div>
+            <div id="domain-list" class="modal-body">
+                <!-- Domain checkboxes will be inserted here -->
+            </div>
+            <div class="modal-footer">
+                <button id="deselect-all-domains-btn" data-lang-key="deselectAll">全部取消</button>
+                <button id="apply-domain-filter-btn" data-lang-key="modalApplyBtn">套用篩選</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/frontend/history/lang.js"></script>
+    <script src="/frontend/history/script.js"></script>
+</body>
+</html>

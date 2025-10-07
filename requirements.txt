@@ -8,3 +8,5 @@ cloudscraper
 lxml
 tqdm
 Flask
+py7zr
+rarfile

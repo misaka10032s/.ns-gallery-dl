@@ -1,7 +1,7 @@
 #!/bin/bash#!/bin/bash
 echo -ne "\033]0;NS Gallery DL Machine\007"
 
-SCRIPT_VERSION="1.0.0"
+SCRIPT_VERSION="1.0.1"
 VENV_DIR="venv"
 INSTALL_FLAG="$VENV_DIR/install.flag"
 

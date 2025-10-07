@@ -1,7 +1,7 @@
 
 const getGalleries = () => {
     const links = Array.from(document.querySelectorAll('a[href*="/g/"]'));
-    const galleryLinks = links.filter(link => link.href.match(/\/g\/\d+\//) && link.querySelector('img'));
+    const galleryLinks = links.filter(link => link.href.match(/\/g\/\d+\/$/) && link.querySelector('img'));
     
     return galleryLinks.map(link => {
         // The container is the 'div' with class 'gallery' that is an ancestor of the link.

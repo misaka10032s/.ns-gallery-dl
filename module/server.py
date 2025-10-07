@@ -1,22 +1,31 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from .fetch import try_download
 from .tokens import load_tokens
 from .history import add_to_history, filter_by_history
 import threading
 from queue import Queue
+import json
+import os
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend')), static_url_path='/frontend')
 
 # Queue to hold download tasks
 download_queue = Queue()
 tokens = load_tokens()
+is_remain = False
 
 def worker():
     """Worker thread that processes the download queue."""
     while True:
         link = download_queue.get()
         if link is None:
+            if is_remain:
+                print("[*] No more tasks in the queue. Worker is exiting.\n\n")
+            is_remain = False
             break
+        else:
+            is_remain = True
+
         links = filter_by_history([link])
         if not links:
             print(f"[*] Skipping already downloaded: {link}")
@@ -32,6 +41,23 @@ def worker():
         add_to_history([{"url": link, "result": result}])
         
         download_queue.task_done()
+
+@app.route('/', methods=['GET'])
+def index():
+    return app.redirect('/history', code=302)
+
+@app.route('/history', methods=['GET'])
+def history_page():
+    return send_from_directory(os.path.join(app.static_folder, 'history'), 'index.html')
+
+@app.route('/api/history', methods=['GET'])
+def get_history():
+    history_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'data', 'history.json'))
+    if not os.path.exists(history_path):
+        return jsonify({})
+    with open(history_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    return jsonify(data)
 
 @app.route('/download', methods=['POST'])
 def download():

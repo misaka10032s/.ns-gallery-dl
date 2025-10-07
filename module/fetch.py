@@ -9,15 +9,10 @@ from .history import filter_by_history, add_to_history
 from .site.pixiv import get_pixiv_token
 from .site.nhentai import download_nhentai
 from .site.wnacg import download_wnacg
-from .config import DOWNLOAD_DIR, MAX_RETRIES, RETRY_DELAY, INPUT_FILE
+from .config import DOWNLOAD_DIR, MAX_RETRIES, RETRY_DELAY, DL_DELAY, INPUT_FILE
 
 def try_download(url):
     tokens = load_tokens()
-
-    if "nhentai.net" in url.lower():
-        return download_nhentai(url, tokens)
-    if "wnacg.com" in url.lower():
-        return download_wnacg(url, tokens)
 
     print(f"[*] Starting download: {url}")
     for attempt in range(1, MAX_RETRIES + 1):
@@ -28,6 +23,11 @@ def try_download(url):
             sys.stdout.flush()
 
         try:
+            if "nhentai.net" in url.lower():
+                return download_nhentai(url, tokens)
+            if "wnacg.com" in url.lower():
+                return download_wnacg(url, tokens)
+            
             env = os.environ.copy()
             if "pixiv" in url.lower():
                 token = get_pixiv_token(tokens)
@@ -74,7 +74,7 @@ def try_download(url):
                 encoding='utf-8',
                 errors='replace'
             )
-            with tqdm(total=total_files, desc=f"Downloading {url}", unit="file") as pbar:
+            with tqdm(total=total_files, desc=f"Downloading", unit="file") as pbar:
                 for line in iter(process.stdout.readline, ''):
                     # Update progress bar when a file is saved
                     if DOWNLOAD_DIR in line:
@@ -154,6 +154,8 @@ def try_download_loop():
         add_to_history([{"url": url, "result": result}])
 
         if result == "success":
-            print(f"[*] Download successful: {url}")
+            print(f"[*] Download successful: {url}\n\n")
         else:
             print(f"[!] Download failed: {url}")
+            
+        time.sleep(DL_DELAY)

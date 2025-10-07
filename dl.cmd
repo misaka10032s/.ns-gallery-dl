@@ -2,7 +2,7 @@
 title NS Gallery DL Machine
 setlocal enabledelayedexpansion
 
-set SCRIPT_VERSION=1.0.0
+set SCRIPT_VERSION=1.0.1
 set VENV_DIR=venv
 set INSTALL_FLAG=%VENV_DIR%\install.flag
 
