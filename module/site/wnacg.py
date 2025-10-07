@@ -65,7 +65,7 @@ def download_wnacg(url, tokens):
 
     try:
         # Fetch the initial page to get the title
-        response = scraper.get(url)
+        response = scraper.get(url, headers=headers)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'lxml')
         title_element = soup.find('title')

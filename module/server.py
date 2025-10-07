@@ -6,6 +6,7 @@ import threading
 from queue import Queue
 import json
 import os
+import cloudscraper
 
 app = Flask(__name__, static_folder=os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend')), static_url_path='/frontend')
 
@@ -28,7 +29,7 @@ def worker():
 
         links = filter_by_history([link])
         if not links:
-            print(f"[*] Skipping already downloaded: {link}")
+            print(f"[*] Skipping already downloaded: {link}\n\n")
             download_queue.task_done()
             continue
         else:
@@ -58,6 +59,41 @@ def get_history():
     with open(history_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
     return jsonify(data)
+
+@app.route('/api/history', methods=['PUT'])
+def update_history():
+    data = request.get_json()
+    date = data.get('date')
+    url = data.get('url')
+    status = data.get('status')
+
+    if not all([date, url, status]):
+        return jsonify({'error': 'Missing date, url, or status'}), 400
+
+    from .history import update_history_status
+    if update_history_status(date, url, status):
+        return jsonify({'message': 'History updated successfully'}), 200
+    else:
+        return jsonify({'error': 'History item not found'}), 404
+
+@app.route('/api/fetch_status', methods=['POST'])
+def fetch_status():
+    data = request.get_json()
+    url = data.get('url')
+    if not url:
+        return jsonify({'error': 'URL is missing'}), 400
+
+    scraper = cloudscraper.create_scraper()
+    try:
+        resp = scraper.get(url, timeout=10)
+        return jsonify({
+            'status_code': resp.status_code,
+            'text': resp.text[:500]  # Truncate to avoid sending huge responses
+        })
+    except cloudscraper.exceptions.CloudflareChallengeError as e:
+        return jsonify({'error': str(e)}), 403
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/download', methods=['POST'])
 def download():

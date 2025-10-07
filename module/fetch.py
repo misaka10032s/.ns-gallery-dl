@@ -156,6 +156,6 @@ def try_download_loop():
         if result == "success":
             print(f"[*] Download successful: {url}\n\n")
         else:
-            print(f"[!] Download failed: {url}")
+            print(f"[!] Download failed: {url}\n\n")
             
         time.sleep(DL_DELAY)

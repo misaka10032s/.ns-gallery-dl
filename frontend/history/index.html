@@ -30,25 +30,31 @@
                 <button id="status-filter-btn" data-lang-key="filterAll">全部</button>
                 <button id="open-domain-modal-btn" data-lang-key="btnFilterByDomain">依網域篩選</button>
                 <button id="clear-filters-btn" data-lang-key="btnClearFilters">清除篩選</button>
+                <button id="reload-btn" data-lang-key="reload">重新載入</button>
             </div>
         </div>
         <div id="selected-domains-display"></div>
-        <div id="history-container" class="history-section">
-            <h1 data-lang-key="pageTitle">下載歷史記錄</h1>
-            <div id="records"></div>
-        </div>
-        <div class="output-section">
-            <div class="output-header">
-                <h2 data-lang-key="selectedUrls">選取的 URL</h2>
-                <div class="controls-wrapper">
-                    <div class="json-mode">
-                        <input type="checkbox" id="json-mode-checkbox">
-                        <label for="json-mode-checkbox" data-lang-key="jsonMode">JSON 模式</label>
-                    </div>
-                    <button id="submit-selected-btn" data-lang-key="submitSelected">送出所選</button>
+        <div class="main-content">
+            <div id="history-container" class="history-section">
+                <div class="history-section-header">
+                    <h1 data-lang-key="pageTitle">下載歷史記錄</h1>
+                    <button id="action-log-btn" data-lang-key="actionLog">操作紀錄</button>
                 </div>
+                <div id="records"></div>
             </div>
-            <textarea id="output-textarea" readonly placeholder="Selected URLs will appear here..."></textarea>
+            <div class="output-section">
+                <div class="output-header">
+                    <h2 data-lang-key="selectedUrls">選取的 URL</h2>
+                    <div class="controls-wrapper">
+                        <div class="json-mode">
+                            <input type="checkbox" id="json-mode-checkbox">
+                            <label for="json-mode-checkbox" data-lang-key="jsonMode">JSON 模式</label>
+                        </div>
+                        <button id="submit-selected-btn" data-lang-key="submitSelected">送出所選</button>
+                    </div>
+                </div>
+                <textarea id="output-textarea" placeholder="Selected URLs will appear here..."></textarea>
+            </div>
         </div>
     </div>
 
@@ -68,6 +74,21 @@
             </div>
         </div>
     </div>
+
+    <!-- Action Log Modal -->
+    <div id="action-log-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 data-lang-key="actionLogTitle">操作紀錄</h2>
+                <span class="close-btn">&times;</span>
+            </div>
+            <div id="log-entries-container" class="modal-body">
+                <!-- Log entries will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <div id="notification-container"></div>
 
     <script src="/frontend/history/lang.js"></script>
     <script src="/frontend/history/script.js"></script>

@@ -22,7 +22,14 @@ const translations = {
         submitSelected: "Submit Selected",
         submitSuccessMsg: "Selected URLs have been sent to the download queue.",
         submitErrorMsg: "Failed to send URLs. Is the server running?",
-        deselectAll: "Deselect All"
+        deselectAll: "Deselect All",
+        reload: "Reload",
+        reloading: "Reloading...",
+        actionLog: "Action Log",
+        actionLogTitle: "Action Log",
+        markAsSuccess: "Mark as Success",
+        markAsFailed: "Mark as Failed",
+        noActionLog: "No action records found."
     },
     zh: {
         pageTitle: "下載歷史記錄",
@@ -47,7 +54,14 @@ const translations = {
         submitSelected: "送出所選",
         submitSuccessMsg: "已將選取的 URL 傳送到下載佇列。",
         submitErrorMsg: "傳送 URL 失敗。伺服器正在執行嗎？",
-        deselectAll: "全部取消"
+        deselectAll: "全部取消",
+        reload: "重新載入",
+        reloading: "載入中...",
+        actionLog: "操作紀錄",
+        actionLogTitle: "操作紀錄",
+        markAsSuccess: "標記為成功",
+        markAsFailed: "標記為失敗",
+        noActionLog: "沒有操作紀錄。"
     },
     ja: {
         pageTitle: "ダウンロード履歴",
@@ -72,7 +86,14 @@ const translations = {
         submitSelected: "選択を送信",
         submitSuccessMsg: "選択したURLをダウンロードキューに送信しました。",
         submitErrorMsg: "URLの送信に失敗しました。サーバーは実行されていますか？",
-        deselectAll: "すべて選択解除"
+        deselectAll: "すべて選択解除",
+        reload: "再読み込み",
+        reloading: "読み込み中...",
+        actionLog: "操作ログ",
+        actionLogTitle: "操作ログ",
+        markAsSuccess: "成功としてマーク",
+        markAsFailed: "失敗としてマーク",
+        noActionLog: "操作ログが見つかりません。"
     }
 };
 
