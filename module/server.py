@@ -38,7 +38,7 @@ def worker():
         print(f"[*] Starting download for: {link}")
         result = try_download(link)
 
-        print(f"[*] Download result for {link}: {result}")
+        print(f"[*] Download result for {link}: {result}\n\n")
         add_to_history([{"url": link, "result": result}])
         
         download_queue.task_done()
