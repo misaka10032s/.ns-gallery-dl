@@ -5,6 +5,7 @@ __pycache__/
 venv/
 
 dl.txt
+todolist.txt
 .env
 history.json
 token.json
