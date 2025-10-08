@@ -82,6 +82,14 @@ This will download all the URLs collected in `dl.txt`.
 -   wnacg
 -   yande.re
 
+### 📜 Update Log
+
+-   **2025-10-07 v1.0.1**
+    1.  Added a local web UI to view download history.
+    2.  Fixed wnacg downloader: now downloads and extracts the zip archive instead of scraping slide images.
+-   **2025-08-19 v1.0.0**
+    -   Initial release.
+
 ---
 
 ## 🇨🇳 繁體中文
@@ -162,6 +170,14 @@ This will download all the URLs collected in `dl.txt`.
 -   wnacg
 -   yande.re
 
+### 📜 更新紀錄
+
+-   **2025-10-07 v1.0.1**
+    1.  新增本地網頁 UI 以檢視下載紀錄。
+    2.  修正 wnacg 下載器，改為下載並解壓縮 zip 檔案，而非抓取幻燈片圖片。
+-   **2025-08-19 v1.0.0**
+    -   初版完成。
+
 ---
 
 ## 🇯🇵 日本語
@@ -241,3 +257,11 @@ This will download all the URLs collected in `dl.txt`.
 -   nhentai
 -   wnacg
 -   yande.re
+
+### 📜 更新履歴
+
+-   **2025-10-07 v1.0.1**
+    1.  ダウンロード履歴を閲覧するためのローカルWeb UIを追加しました。
+    2.  wnacgダウンローダーを修正：スライド画像をスクレイピングする代わりに、zipアーカイブをダウンロードして展開するように変更しました。
+-   **2025-08-19 v1.0.0**
+    -   初期リリース。
