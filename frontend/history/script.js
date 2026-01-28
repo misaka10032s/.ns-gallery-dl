@@ -169,6 +169,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Restore expanded state
             if (expandedGroups.has(date)) {
                 contentDiv.style.display = 'block';
+            } else {
+                contentDiv.style.display = 'none';
             }
 
             items.forEach(item => {

@@ -9,6 +9,7 @@ from pathlib import Path
 from tqdm import tqdm
 import zipfile
 import io
+import json
 
 # Imports for multi-format archive support
 try:
@@ -23,15 +24,13 @@ except ImportError:
 from ..tokens import save_tokens, load_tokens
 from ..config import MAX_DOWNLOAD_THREADS
 
-download_button_index = 0
-
 headers = {
     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
     "accept-language": "ja-JP,ja;q=0.9,zh-TW;q=0.8,zh;q=0.7,en-US;q=0.6,en;q=0.5,zh-CN;q=0.4",
     "cache-control": "no-cache",
     "pragma": "no-cache",
     "priority": "u=0, i",
-    "sec-ch-ua": "\"Chromium\";v=\"140\", \"Not=A?Brand\";v=\"24\", \"Google Chrome\";v=\"140\"",
+    "sec-ch-ua": "\"Not(A:Brand\";v=\"8\", \"Chromium\";v=\"144\", \"Google Chrome\";v=\"144\"",
     "sec-ch-ua-mobile": "?0",
     "sec-ch-ua-platform": "\"Windows\"",
     "sec-fetch-dest": "document",
@@ -39,7 +38,7 @@ headers = {
     "sec-fetch-site": "none",
     "sec-fetch-user": "?1",
     "upgrade-insecure-requests": "1",
-    "User-Agent": "user-agent Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
 }
 
 def remove_illegal_chars(filename):
@@ -48,6 +47,91 @@ def remove_illegal_chars(filename):
     cleaned = cleaned.strip('. ')
     cleaned = cleaned[:150]
     return cleaned
+
+def getResourceUrl_1(soup, scraper):
+    scripts = soup.find_all('script')
+    config_script = None
+    for script in scripts:
+        if script.string and "const CONFIG = {" in script.string:
+            config_script = script.string
+            break
+            
+    if not config_script:
+        return None, None
+
+    try:
+        worker_api = re.search(r'WORKER_API:\s*"(.*?)"', config_script).group(1)
+        file_key = re.search(r'FILE_KEY:\s*"(.*?)"', config_script).group(1)
+        file_name = re.search(r'FILE_NAME:\s*"(.*?)"', config_script).group(1)
+    except AttributeError:
+         return None, None
+
+    archive_filename = file_name
+    
+    # Request download link
+    try:
+        print(f'[debug] worker_api: {worker_api}, file_key: {file_key}, file_name: {file_name}')
+        
+        # Prepare headers for the API request based on the scraper's current headers
+        api_headers = scraper.headers.copy()
+        api_headers.update({
+            "Accept": "*/*",
+            "Content-Type": "application/json",
+            "Origin": "https://www.wnacg.com",
+            "Referer": "https://www.wnacg.com/",
+            "Priority": "u=1, i",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "cross-site",
+        })
+
+        api_response = scraper.post(
+            worker_api,
+            json={"file_key": file_key, "file_name": file_name},
+            headers=api_headers
+        )
+        api_response.raise_for_status()
+        api_data = api_response.json()
+        
+        if not api_data.get('success'):
+             print(f"[wnacg] API request failed: {api_data.get('msg')}")
+             return None, None
+             
+        return api_data.get('url'), archive_filename
+    except Exception as e:
+        print(f"[wnacg] Failed to get download link from API: {e}")
+        return None, None
+
+def getResourceUrl_2(soup, url):
+    # Try to find the backup download button (Server 2)
+    # Target: <button ...><a class="ads" href="..."><span>備用線路 (Server 2)</span></a></button>
+    
+    # Strategy 1: Find by button text content
+    server2_span = soup.find('span', string=re.compile(r'備用線路\s*\(Server 2\)'))
+    if server2_span:
+        link_tag = server2_span.find_parent('a')
+        if link_tag and link_tag.get('href'):
+             download_link = link_tag.get('href')
+             if not download_link.startswith('http'):
+                download_link = urljoin('https:', download_link)
+             
+             # Need to find filename separately since it's not in the button
+             filename_p = soup.find('p', class_='download_filename')
+             archive_filename = filename_p.text.strip() if filename_p else "wnacg_archive.zip"
+             return download_link, archive_filename
+
+    # Strategy 2: Find by class structure if text fails
+    ads_link = soup.find('a', class_='ads', href=True)
+    if ads_link and "備用線路" in ads_link.get_text():
+        download_link = ads_link.get('href')
+        if not download_link.startswith('http'):
+            download_link = urljoin('https:', download_link)
+        
+        filename_p = soup.find('p', class_='download_filename')
+        archive_filename = filename_p.text.strip() if filename_p else "wnacg_archive.zip"
+        return download_link, archive_filename
+
+    return None, None
 
 def download_wnacg(url, tokens):
     """
@@ -92,27 +176,17 @@ def download_wnacg(url, tokens):
     # 3. Scrape download URL and filename for the archive
     soup = BeautifulSoup(response.text, 'lxml')
     
-    download_buttons = soup.find_all('a', class_='down_btn', string=re.compile(r'本地下載(一|二)'))
-    if not download_buttons:
-        print(f"[wnacg] Could not find any download buttons on page: {gallery_url}")
-        print(f"{soup.prettify()}\n\n")
-        return "failed"
-
-    filename_p = soup.find('p', class_='download_filename')
-    if not filename_p:
-        print(f"[wnacg] Could not find filename on page: {gallery_url}")
-        return "failed"
+    # Try method 1: API Config
+    download_link, archive_filename = getResourceUrl_1(soup, scraper)
     
-    archive_filename = filename_p.text.strip()
-
-    # Alternate between download buttons
-    global download_button_index
-    button_to_use = download_buttons[download_button_index % len(download_buttons)]
-    download_button_index = (download_button_index + 1) % len(download_buttons)
+    # Try method 2: Backup Button if method 1 failed
+    if not download_link:
+        print("[wnacg] Method 1 failed or not available. Trying Method 2 (Backup Server)...")
+        download_link, archive_filename = getResourceUrl_2(soup, gallery_url)
     
-    download_link = button_to_use.get('href')
-    if not download_link.startswith('http'):
-        download_link = urljoin('https:', download_link)
+    if not download_link:
+        print(f"[wnacg] Could not find valid download link on page: {gallery_url}")
+        return "failed"
 
     archive_path = download_dir / archive_filename
 
