@@ -36,6 +36,13 @@ def try_download(url):
 
             # Step 1: Simulate to get total file count
             simulate_cmd = ["gallery-dl", "--simulate", url]
+            
+            # Add cookies for Facebook
+            if "facebook.com" in url.lower():
+                cookies_path = os.path.join("module", "cookies", "cookies-facebook-com.txt")
+                if os.path.exists(cookies_path):
+                    simulate_cmd.extend(["-C", cookies_path])
+
             simulate_process = subprocess.run(
                 simulate_cmd,
                 capture_output=True,
@@ -65,6 +72,13 @@ def try_download(url):
 
             # Step 2: Run the actual download with Popen and tqdm
             download_cmd = ["gallery-dl", url, "-d", DOWNLOAD_DIR]
+            
+            # Add cookies for Facebook
+            if "facebook.com" in url.lower():
+                cookies_path = os.path.join("module", "cookies", "cookies-facebook-com.txt")
+                if os.path.exists(cookies_path):
+                    download_cmd.extend(["-C", cookies_path])
+
             process = subprocess.Popen(
                 download_cmd,
                 stdout=subprocess.PIPE,

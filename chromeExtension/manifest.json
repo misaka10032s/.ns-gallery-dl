@@ -69,6 +69,17 @@
             "css": [
                 "yande.re/style.css"
             ]
+        },
+        {
+            "matches": [
+                "https://www.facebook.com/*"
+            ],
+            "js": [
+                "facebook/content.js"
+            ],
+            "css": [
+                "facebook/style.css"
+            ]
         }
     ]
 }

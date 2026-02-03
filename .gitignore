@@ -11,3 +11,5 @@ history.json
 token.json
 
 cli.gemini.cmd
+
+module/cookies/*
