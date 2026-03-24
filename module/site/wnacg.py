@@ -28,6 +28,7 @@ headers = {
     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
     "accept-language": "ja-JP,ja;q=0.9,zh-TW;q=0.8,zh;q=0.7,en-US;q=0.6,en;q=0.5,zh-CN;q=0.4",
     "cache-control": "no-cache",
+    "cookie": "X_CACHE_KEY=9aa9086a3fafb3797b9ec284a06144b1; _cfuvid=whz4jN29ZLES7PJ1mbhVX89U4HPKfs4J3grjzsxyUrM-1772711299.0108857-1.0.1.1-4_QtHtslpkyJ8j5kRXf.f2gpSsRR8oC_xfZMDl4dc3c",
     "pragma": "no-cache",
     "priority": "u=0, i",
     "sec-ch-ua": "\"Not(A:Brand\";v=\"8\", \"Chromium\";v=\"144\", \"Google Chrome\";v=\"144\"",
@@ -38,7 +39,7 @@ headers = {
     "sec-fetch-site": "none",
     "sec-fetch-user": "?1",
     "upgrade-insecure-requests": "1",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
 }
 
 def remove_illegal_chars(filename):
