@@ -7,14 +7,21 @@
     <link rel="stylesheet" href="/frontend/history/style.css">
 </head>
 <body>
-    <div class="container">
-        <div class="top-bar">
+    <nav class="navbar">
+        <div class="navbar-left">
+            <span class="navbar-brand">NS Gallery-DL</span>
+            <a href="/history" class="navbar-link active">📋 History</a>
+            <a href="/queue" class="navbar-link">⏳ Queue</a>
+        </div>
+        <div class="navbar-right">
             <div class="lang-selector">
                 <button data-lang-set="zh">繁體中文</button>
                 <button data-lang-set="en">English</button>
                 <button data-lang-set="ja">日本語</button>
             </div>
         </div>
+    </nav>
+    <div class="container">
         <div class="filter-controls">
             <div class="date-filters">
                 <label for="start-date" data-lang-key="filterFrom">從:</label>

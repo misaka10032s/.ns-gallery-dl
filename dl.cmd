@@ -2,7 +2,7 @@
 title NS Gallery DL Machine
 setlocal enabledelayedexpansion
 
-set SCRIPT_VERSION=1.0.1
+set SCRIPT_VERSION=1.0.2
 set VENV_DIR=venv
 set INSTALL_FLAG=%VENV_DIR%\install.flag
 
@@ -53,9 +53,51 @@ if defined NEEDS_INSTALL (
     echo [*] Dependencies are up to date.
 )
 
+REM Show usage hint when -h / --help is passed
+if "%~1"=="-h" goto :usage
+if "%~1"=="--help" goto :usage
+
+REM Set window title based on mode flags
+set "HAS_S="
+set "HAS_B="
+for %%A in (%*) do (
+    if /i "%%A"=="-s"       set "HAS_S=1"
+    if /i "%%A"=="--server" set "HAS_S=1"
+    if /i "%%A"=="-b"       set "HAS_B=1"
+    if /i "%%A"=="--bot"    set "HAS_B=1"
+)
+if defined HAS_S (
+    if defined HAS_B (
+        title NS Gallery DL - Server + Bot
+    ) else (
+        title NS Gallery DL - Server
+    )
+) else if defined HAS_B (
+    title NS Gallery DL - Bot
+) else if /i "%~1"=="-u" (
+    title NS Gallery DL - Update
+) else if /i "%~1"=="--update" (
+    title NS Gallery DL - Update
+) else (
+    title NS Gallery DL - Download
+)
+
 REM Run the main script
 echo [*] Running download script...
 python dl.py %*
+goto :EOF
+
+:usage
+echo.
+echo Usage: dl.cmd [mode]
+echo.
+echo   (no args)        Download URLs from dl.txt
+echo   -s / --server    Start the Flask server (port 7601)
+echo   -b / --bot       Start the Discord bot
+echo   -s -b            Start Flask server AND Discord bot together
+echo   -u / --update    Force-reinstall all dependencies
+echo   -h / --help      Show this help message
+echo.
 
 endlocal
 pause

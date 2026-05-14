@@ -1,3 +1,0 @@
-#!/bin/bash
-./dl.sh -u
-read -p "Press any key to continue..."

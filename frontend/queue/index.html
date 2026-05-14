@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>下載佇列</title>
+    <link rel="stylesheet" href="/frontend/queue/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-left">
+            <span class="navbar-brand">NS Gallery-DL</span>
+            <a href="/history" class="navbar-link">📋 History</a>
+            <a href="/queue" class="navbar-link active">⏳ Queue</a>
+        </div>
+        <div class="navbar-right">
+            <label class="auto-refresh-label">
+                <input type="checkbox" id="auto-refresh-cb"> Auto-refresh (5s)
+            </label>
+            <button id="reload-btn">⟳ Reload</button>
+        </div>
+    </nav>
+    <div class="container">
+        <h1>下載佇列 <span id="count-badge" class="count-badge">0</span></h1>
+
+        <div id="current-section" class="card" style="display:none">
+            <div class="card-title">⬇ Downloading</div>
+            <div id="current-item" class="item item-current"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">⏳ Pending <span id="pending-count"></span></div>
+            <div id="pending-list"></div>
+        </div>
+    </div>
+
+    <script src="/frontend/queue/script.js"></script>
+</body>
+</html>

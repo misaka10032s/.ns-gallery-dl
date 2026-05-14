@@ -10,3 +10,5 @@ tqdm
 Flask
 py7zr
 rarfile
+python-dotenv
+discord.py>=2.4.0

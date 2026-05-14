@@ -1,3 +1,0 @@
-@echo off
-call dl.cmd -u
-pause
