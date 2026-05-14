@@ -26,6 +26,19 @@ def get_history():
         data = json.load(f)
     return jsonify(data)
 
+@app.route('/api/history', methods=['DELETE'])
+def delete_history():
+    data = request.get_json()
+    date = data.get('date')
+    url = data.get('url')
+    if not all([date, url]):
+        return jsonify({'error': 'Missing date or url'}), 400
+    from .history import delete_from_history
+    if delete_from_history(date, url):
+        return jsonify({'message': 'Deleted'}), 200
+    else:
+        return jsonify({'error': 'History item not found'}), 404
+
 @app.route('/api/history', methods=['PUT'])
 def update_history():
     data = request.get_json()

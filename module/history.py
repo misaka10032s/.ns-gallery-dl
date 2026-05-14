@@ -48,10 +48,32 @@ def filter_by_history(urls):
 def add_to_history(results):
     history = load_history()
     today = datetime.now().strftime("%Y-%m-%d")
+
+    # Each URL keeps only one record (the latest attempt).
+    # Remove any prior entries for these URLs across all dates before inserting.
+    new_urls = {r["url"] for r in results}
+    for date in list(history.keys()):
+        history[date] = [item for item in history[date] if item.get("url") not in new_urls]
+        if not history[date]:
+            del history[date]
+
     if today not in history:
         history[today] = []
     history[today].extend(results)
     save_history(history)
+
+def delete_from_history(date, url):
+    history = load_history()
+    if date not in history:
+        return False
+    original = history[date]
+    history[date] = [item for item in original if item.get("url") != url]
+    if len(history[date]) == len(original):
+        return False
+    if not history[date]:
+        del history[date]
+    save_history(history)
+    return True
 
 def update_history_status(date, url, new_status):
     history = load_history()

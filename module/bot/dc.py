@@ -27,11 +27,24 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff"}
 URL_PATTERN = re.compile(r"https?://[^\s<>\"']+")
 
 GALLERYDL_DOMAINS = {
+    # Social / art platforms
     "pixiv.net", "x.com", "twitter.com",
-    "nhentai.net", "wnacg.com", "yande.re",
-    "danbooru.donmai.us", "gelbooru.com", "konachan.com",
-    "art.ngfiles.com", "deviantart.com", "artstation.com",
+    "bsky.app",
     "instagram.com", "tumblr.com", "reddit.com",
+    "deviantart.com", "artstation.com",
+    "flickr.com", "imgur.com",
+    "pinterest.com", "pinterest.co.uk", "pin.it",
+    # Creator / fan platforms
+    "fanbox.cc", "patreon.com", "skeb.jp",
+    "civitai.com",
+    # Booru / image boards
+    "danbooru.donmai.us", "gelbooru.com", "konachan.com", "yande.re",
+    "sankaku.app",
+    # Archives
+    "kemono.cr", "coomer.st",
+    # Misc
+    "nhentai.net", "wnacg.com",
+    "art.ngfiles.com",
 }
 
 # Unicode fallbacks used when a custom emoji permission check fails
@@ -180,21 +193,6 @@ def _get_embed_image_url(embed: discord.Embed) -> str | None:
     return None
 
 
-def _iter_attachments_and_embeds(message: discord.Message):
-    """
-    Yield (attachments, embeds, content) tuples from a message AND any
-    forwarded message snapshots it carries (discord.py ≥ 2.4).
-    """
-    yield message.attachments, message.embeds, message.content or ""
-    for snapshot in getattr(message, "message_snapshots", []):
-        snap = getattr(snapshot, "message", None)
-        if snap is None:
-            continue
-        yield (
-            getattr(snap, "attachments", []),
-            getattr(snap, "embeds", []),
-            getattr(snap, "content", "") or "",
-        )
 
 
 async def _collect_coros(
@@ -203,41 +201,51 @@ async def _collect_coros(
 ) -> list:
     """
     Build the list of download coroutines for a message.
-    - before=None  → new message: handle attachments, content URLs, embeds
-    - before set   → edited message: handle only newly added embeds
-    Forwarded messages (message_snapshots) are also scanned.
+    - before=None  → new message: process attachments, content URLs, and type="image" embeds
+    - before set   → edited message: handle only newly added type="image" embeds
+    - message_snapshots (forwarded messages): attachments + gallery-dl URLs only;
+      embeds inside snapshots are link-previews from the original message and are skipped.
     """
     coros = []
     is_new = before is None
     channel_name = _channel_dir_name(message.channel)
 
-    seen_embed_urls: set[str] = {e.url for e in before.embeds if e.url} if before else set()
-
-    for attachments, embeds, content in _iter_attachments_and_embeds(message):
-        if is_new:
-            # Direct image attachments
-            for attachment in attachments:
+    if is_new:
+        # Direct image attachments on the message itself
+        for attachment in message.attachments:
+            ct = (attachment.content_type or "").split(";")[0].strip()
+            if ct in IMAGE_CONTENT_TYPES or Path(attachment.filename).suffix.lower() in IMAGE_EXTENSIONS:
+                coros.append(_save_attachment(attachment, channel_name))
+        # Gallery-dl URLs in message text
+        for url in URL_PATTERN.findall(message.content or ""):
+            if _is_gallerydl_url(url):
+                coros.append(_download_url(url))
+        # Forwarded snapshots: attachments + gallery-dl content URLs only (no link-preview embeds)
+        for snapshot in getattr(message, "message_snapshots", []):
+            for attachment in snapshot.attachments:
                 ct = (attachment.content_type or "").split(";")[0].strip()
                 if ct in IMAGE_CONTENT_TYPES or Path(attachment.filename).suffix.lower() in IMAGE_EXTENSIONS:
                     coros.append(_save_attachment(attachment, channel_name))
-            # Gallery-dl URLs in text
-            for url in URL_PATTERN.findall(content):
+            for url in URL_PATTERN.findall(snapshot.content or ""):
                 if _is_gallerydl_url(url):
                     coros.append(_download_url(url))
 
-        # Embedded images
-        for embed in embeds:
-            if embed.url and embed.url in seen_embed_urls:
-                continue
-            img_url = _get_embed_image_url(embed)
-            if not img_url:
-                continue
-            source = embed.url or img_url
-            if _is_gallerydl_url(source):
-                if is_new:
-                    coros.append(_download_url(source))
-            else:
-                coros.append(_download_embed_image(img_url, channel_name))
+    # Embedded images on the message itself: only type="image" (direct image URL, not link previews)
+    seen_embed_urls: set[str] = {e.url for e in before.embeds if e.url} if before else set()
+    for embed in message.embeds:
+        if embed.type != "image":
+            continue
+        if embed.url and embed.url in seen_embed_urls:
+            continue
+        img_url = _get_embed_image_url(embed)
+        if not img_url:
+            continue
+        source = embed.url or img_url
+        if _is_gallerydl_url(source):
+            if is_new:
+                coros.append(_download_url(source))
+        else:
+            coros.append(_download_embed_image(img_url, channel_name))
 
     return coros
 
@@ -311,27 +319,39 @@ async def _cmd_download_channel(trigger: discord.Message) -> None:
             continue
 
         coros: list = []
-        for attachments, embeds, content in _iter_attachments_and_embeds(msg):
-            for attachment in attachments:
+        # Main message: attachments + gallery-dl URLs + type="image" embeds
+        for attachment in msg.attachments:
+            ct = (attachment.content_type or "").split(";")[0].strip()
+            if ct in IMAGE_CONTENT_TYPES or Path(attachment.filename).suffix.lower() in IMAGE_EXTENSIONS:
+                coros.append(_save_attachment(attachment, channel_name))
+        for url in URL_PATTERN.findall(msg.content or ""):
+            if _is_gallerydl_url(url) and url not in seen_direct:
+                seen_direct.add(url)
+                coros.append(_download_url(url))
+        for embed in msg.embeds:
+            if embed.type != "image":
+                continue
+            img_url = _get_embed_image_url(embed)
+            if not img_url:
+                continue
+            source = embed.url or img_url
+            if _is_gallerydl_url(source):
+                if source not in seen_direct:
+                    seen_direct.add(source)
+                    coros.append(_download_url(source))
+            elif img_url not in seen_direct:
+                seen_direct.add(img_url)
+                coros.append(_download_embed_image(img_url, channel_name))
+        # Forwarded snapshots: attachments + gallery-dl URLs only (no link-preview embeds)
+        for snapshot in getattr(msg, "message_snapshots", []):
+            for attachment in snapshot.attachments:
                 ct = (attachment.content_type or "").split(";")[0].strip()
                 if ct in IMAGE_CONTENT_TYPES or Path(attachment.filename).suffix.lower() in IMAGE_EXTENSIONS:
                     coros.append(_save_attachment(attachment, channel_name))
-            for url in URL_PATTERN.findall(content):
+            for url in URL_PATTERN.findall(snapshot.content or ""):
                 if _is_gallerydl_url(url) and url not in seen_direct:
                     seen_direct.add(url)
                     coros.append(_download_url(url))
-            for embed in embeds:
-                img_url = _get_embed_image_url(embed)
-                if not img_url:
-                    continue
-                source = embed.url or img_url
-                if _is_gallerydl_url(source):
-                    if source not in seen_direct:
-                        seen_direct.add(source)
-                        coros.append(_download_url(source))
-                elif img_url not in seen_direct:
-                    seen_direct.add(img_url)
-                    coros.append(_download_embed_image(img_url, channel_name))
 
         if coros:
             msg_tasks.append((msg, coros))

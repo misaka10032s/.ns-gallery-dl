@@ -29,7 +29,9 @@ const translations = {
         actionLogTitle: "Action Log",
         markAsSuccess: "Mark as Success",
         markAsFailed: "Mark as Failed",
-        noActionLog: "No action records found."
+        noActionLog: "No action records found.",
+        delete: "Delete",
+        deleteSuccessMsg: "Record deleted.",
     },
     zh: {
         pageTitle: "下載歷史記錄",
@@ -61,7 +63,9 @@ const translations = {
         actionLogTitle: "操作紀錄",
         markAsSuccess: "標記為成功",
         markAsFailed: "標記為失敗",
-        noActionLog: "沒有操作紀錄。"
+        noActionLog: "沒有操作紀錄。",
+        delete: "刪除",
+        deleteSuccessMsg: "記錄已刪除。",
     },
     ja: {
         pageTitle: "ダウンロード履歴",
@@ -93,7 +97,9 @@ const translations = {
         actionLogTitle: "操作ログ",
         markAsSuccess: "成功としてマーク",
         markAsFailed: "失敗としてマーク",
-        noActionLog: "操作ログが見つかりません。"
+        noActionLog: "操作ログが見つかりません。",
+        delete: "削除",
+        deleteSuccessMsg: "レコードを削除しました。",
     }
 };
 

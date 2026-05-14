@@ -1,7 +1,9 @@
 import sys
 import os
+import re
 import subprocess
 import time
+from urllib.parse import urlparse
 from tqdm import tqdm
 from datetime import datetime
 from .tokens import load_tokens
@@ -10,6 +12,28 @@ from .site.pixiv import get_pixiv_token
 from .site.nhentai import download_nhentai
 from .site.wnacg import download_wnacg
 from .config import DOWNLOAD_DIR, MAX_RETRIES, RETRY_DELAY, DL_DELAY, INPUT_FILE
+
+_COOKIES_DIR = os.path.join(os.path.dirname(__file__), "cookies")
+
+def _cookies_arg(url: str) -> list[str]:
+    """
+    Return ["-C", "<path>"] if a matching cookies file exists for the given URL,
+    otherwise return [].
+    Cookie files are named after the domain with dots/hyphens normalised,
+    e.g. cookies-pinterest-com.txt, cookies-fanbox-cc.txt.
+    """
+    try:
+        host = urlparse(url).hostname or ""
+    except Exception:
+        return []
+    # strip leading "www."
+    host = re.sub(r"^www\.", "", host)
+    # convert dots to hyphens: pinterest.com → pinterest-com
+    stem = host.replace(".", "-")
+    path = os.path.join(_COOKIES_DIR, f"cookies-{stem}.txt")
+    if os.path.exists(path):
+        return ["-C", path]
+    return []
 
 def try_download(url):
     tokens = load_tokens()
@@ -35,13 +59,7 @@ def try_download(url):
                     env["GALLERYDL_PIXIV_REFRESH_TOKEN"] = token
 
             # Step 1: Simulate to get total file count
-            simulate_cmd = ["gallery-dl", "--simulate", url]
-            
-            # Add cookies for Facebook
-            if "facebook.com" in url.lower():
-                cookies_path = os.path.join("module", "cookies", "cookies-facebook-com.txt")
-                if os.path.exists(cookies_path):
-                    simulate_cmd.extend(["-C", cookies_path])
+            simulate_cmd = ["gallery-dl", "--simulate", url] + _cookies_arg(url)
 
             simulate_process = subprocess.run(
                 simulate_cmd,
@@ -71,13 +89,7 @@ def try_download(url):
                 return "success"
 
             # Step 2: Run the actual download with Popen and tqdm
-            download_cmd = ["gallery-dl", url, "-d", DOWNLOAD_DIR]
-            
-            # Add cookies for Facebook
-            if "facebook.com" in url.lower():
-                cookies_path = os.path.join("module", "cookies", "cookies-facebook-com.txt")
-                if os.path.exists(cookies_path):
-                    download_cmd.extend(["-C", cookies_path])
+            download_cmd = ["gallery-dl", url, "-d", DOWNLOAD_DIR] + _cookies_arg(url)
 
             process = subprocess.Popen(
                 download_cmd,

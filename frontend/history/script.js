@@ -188,6 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="history-entry-actions">
                         <button class="entry-action-btn fetch-btn" data-url="${item.url}">fetch</button>
                         <button class="entry-action-btn mark-status-btn" data-url="${item.url}" data-current-status="${item.result}">${markButtonText}</button>
+                        <button class="entry-action-btn delete-btn" data-url="${item.url}">${getTranslation('delete')}</button>
                     </div>
                 `;
                 contentDiv.appendChild(entryDiv);
@@ -414,6 +415,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 target.classList.add('status-danger');
             })
             .finally(() => { target.disabled = false; });
+            return;
+        }
+
+        // Delete button
+        if (target.classList.contains('delete-btn')) {
+            const url = target.dataset.url;
+            const date = target.closest('.history-group').dataset.date;
+            target.disabled = true;
+
+            fetch('/api/history', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date, url })
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Delete failed.');
+                return response.json();
+            })
+            .then(() => {
+                logAction(url, fullHistoryData[date]?.find(i => i.url === url)?.result ?? '?', 'deleted');
+                if (fullHistoryData[date]) {
+                    fullHistoryData[date] = fullHistoryData[date].filter(i => i.url !== url);
+                    if (fullHistoryData[date].length === 0) delete fullHistoryData[date];
+                }
+                applyFilters();
+            })
+            .catch(err => {
+                console.error('Delete error:', err);
+                showNotification('Failed to delete record.', 'error');
+                target.disabled = false;
+            });
             return;
         }
 
