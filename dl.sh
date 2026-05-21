@@ -1,5 +1,5 @@
-#!/bin/bash#!/bin/bash
-echo -ne "\033]0;NS Gallery DL Machine\007"
+#!/bin/bash
+echo -ne "\033]0;NS Media Hub\007"
 
 SCRIPT_VERSION="1.0.2"
 VENV_DIR="venv"
@@ -55,7 +55,7 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     echo "  (no args)        Download URLs from dl.txt"
     echo "  -s / --server    Start the Flask server (port 7601)"
     echo "  -b / --bot       Start the Discord bot"
-    echo "  -s -b            Start Flask server AND Discord bot together"
+    echo "  -s -b / -sb      Start Flask server AND Discord bot together"
     echo "  -u / --update    Force-reinstall all dependencies"
     echo "  -h / --help      Show this help message"
     echo ""
@@ -69,18 +69,19 @@ for arg in "$@"; do
     case "$arg" in
         -s|--server) HAS_S=true ;;
         -b|--bot)    HAS_B=true ;;
+        -sb)         HAS_S=true; HAS_B=true ;;
     esac
 done
 if $HAS_S && $HAS_B; then
-    echo -ne "\033]0;NS Gallery DL - Server + Bot\007"
+    echo -ne "\033]0;NS Media Hub - Server + Bot\007"
 elif $HAS_S; then
-    echo -ne "\033]0;NS Gallery DL - Server\007"
+    echo -ne "\033]0;NS Media Hub - Server\007"
 elif $HAS_B; then
-    echo -ne "\033]0;NS Gallery DL - Bot\007"
+    echo -ne "\033]0;NS Media Hub - Bot\007"
 elif [[ "$1" == "-u" || "$1" == "--update" ]]; then
-    echo -ne "\033]0;NS Gallery DL - Update\007"
+    echo -ne "\033]0;NS Media Hub - Update\007"
 else
-    echo -ne "\033]0;NS Gallery DL - Download\007"
+    echo -ne "\033]0;NS Media Hub - Download\007"
 fi
 
 # Run the main script

@@ -1,5 +1,5 @@
 @echo off
-title NS Gallery DL Machine
+title NS Media Hub
 setlocal enabledelayedexpansion
 
 set SCRIPT_VERSION=1.0.2
@@ -65,21 +65,25 @@ for %%A in (%*) do (
     if /i "%%A"=="--server" set "HAS_S=1"
     if /i "%%A"=="-b"       set "HAS_B=1"
     if /i "%%A"=="--bot"    set "HAS_B=1"
+    if /i "%%A"=="-sb" (
+        set "HAS_S=1"
+        set "HAS_B=1"
+    )
 )
 if defined HAS_S (
     if defined HAS_B (
-        title NS Gallery DL - Server + Bot
+        title NS Media Hub - Server + Bot
     ) else (
-        title NS Gallery DL - Server
+        title NS Media Hub - Server
     )
 ) else if defined HAS_B (
-    title NS Gallery DL - Bot
+    title NS Media Hub - Bot
 ) else if /i "%~1"=="-u" (
-    title NS Gallery DL - Update
+    title NS Media Hub - Update
 ) else if /i "%~1"=="--update" (
-    title NS Gallery DL - Update
+    title NS Media Hub - Update
 ) else (
-    title NS Gallery DL - Download
+    title NS Media Hub - Download
 )
 
 REM Run the main script
@@ -91,10 +95,10 @@ goto :EOF
 echo.
 echo Usage: dl.cmd [mode]
 echo.
-echo   (no args)        Download URLs from dl.txt
-echo   -s / --server    Start the Flask server (port 7601)
+echo   (no args)        Download URLs from dl.txt via NS Media Hub
+echo   -s / --server    Start the local API server (port 7601)
 echo   -b / --bot       Start the Discord bot
-echo   -s -b            Start Flask server AND Discord bot together
+echo   -s -b / -sb      Start local API server AND Discord bot together
 echo   -u / --update    Force-reinstall all dependencies
 echo   -h / --help      Show this help message
 echo.

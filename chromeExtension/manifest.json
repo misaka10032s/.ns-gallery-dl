@@ -1,85 +1,111 @@
 {
-    "manifest_version": 3,
-    "name": "NS gallery-dl extension",
-    "version": "1.0",
-    "description": "Select and export NS gallery artwork links.",
-    "permissions": [
-        "activeTab",
-        "webRequest",
-        "notifications",
-        "scripting",
-        "clipboardWrite",
-        "offscreen"
-    ],
-    "host_permissions": [
-        "http://127.0.0.1:7601/*",
-        "https://app-api.pixiv.net/*",
-        "https://www.pixiv.net/*",
-        "https://accounts.pixiv.net/*"
-    ],
-    "background": {
-        "service_worker": "background.js",
-        "type": "module"
+  "name": "NS Media Hub",
+  "version": "2.1.0",
+  "description": "Unified downloader and browser helper for NS Media Hub.",
+  "manifest_version": 3,
+  "author": "misaka10032s",
+  "background": {
+    "service_worker": "background/index.js",
+    "type": "module"
+  },
+  "permissions": [
+    "activeTab",
+    "contextMenus",
+    "tabs",
+    "scripting",
+    "storage",
+    "webNavigation",
+    "downloads",
+    "notifications",
+    "webRequest",
+    "clipboardWrite",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:7601/*",
+    "http://*/*",
+    "https://*/*",
+    "https://app-api.pixiv.net/*",
+    "https://www.pixiv.net/*",
+    "https://accounts.pixiv.net/*"
+  ],
+  "action": {
+    "default_popup": "static/template/popup/action_popup_index.html"
+  },
+  "omnibox": {
+    "keyword": "ns"
+  },
+  "icons": {
+    "16": "static/images/icon16.png"
+  },
+  "commands": {
+    "Ctrl+Shift+Z": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Z",
+        "mac": "MacCtrl+Shift+Z"
+      },
+      "description": "NS Media Hub command"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.pixiv.net/users/*",
+        "https://www.pixiv.net/artworks/*"
+      ],
+      "js": [
+        "pixiv/content.js"
+      ],
+      "css": [
+        "pixiv/style.css"
+      ]
     },
-    "content_scripts": [
-        {
-            "matches": [
-                "https://www.pixiv.net/users/*",
-                "https://www.pixiv.net/artworks/*"
-            ],
-            "js": [
-                "pixiv/content.js"
-            ],
-            "css": [
-                "pixiv/style.css"
-            ]
-        },
-        {
-            "matches": [
-                "https://nhentai.net/*",
-                "https://nhentai.net/g/*"
-            ],
-            "js": [
-                "nhentai/content.js"
-            ],
-            "css": [
-                "nhentai/style.css"
-            ]
-        },
-        {
-            "matches": [
-                "https://wnacg.com/*",
-                "https://www.wnacg.com/*"
-            ],
-            "js": [
-                "wnacg/content.js"
-            ],
-            "css": [
-                "wnacg/style.css"
-            ]
-        },
-        {
-            "matches": [
-                "https://yande.re/post",
-                "https://yande.re/post?tags=*"
-            ],
-            "js": [
-                "yande.re/content.js"
-            ],
-            "css": [
-                "yande.re/style.css"
-            ]
-        },
-        {
-            "matches": [
-                "https://www.facebook.com/*"
-            ],
-            "js": [
-                "facebook/content.js"
-            ],
-            "css": [
-                "facebook/style.css"
-            ]
-        }
-    ]
+    {
+      "matches": [
+        "https://nhentai.net/*",
+        "https://nhentai.net/g/*"
+      ],
+      "js": [
+        "nhentai/content.js"
+      ],
+      "css": [
+        "nhentai/style.css"
+      ]
+    },
+    {
+      "matches": [
+        "https://wnacg.com/*",
+        "https://www.wnacg.com/*"
+      ],
+      "js": [
+        "wnacg/content.js"
+      ],
+      "css": [
+        "wnacg/style.css"
+      ]
+    },
+    {
+      "matches": [
+        "https://yande.re/post",
+        "https://yande.re/post?tags=*"
+      ],
+      "js": [
+        "yande.re/content.js"
+      ],
+      "css": [
+        "yande.re/style.css"
+      ]
+    },
+    {
+      "matches": [
+        "https://www.facebook.com/*"
+      ],
+      "js": [
+        "facebook/content.js"
+      ],
+      "css": [
+        "facebook/style.css"
+      ]
+    }
+  ]
 }

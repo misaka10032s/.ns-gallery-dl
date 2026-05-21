@@ -1,13 +1,3 @@
-import os
-import json
-from .config import TOKEN_FILE
+from app.services.token_service import load_tokens, save_tokens
 
-def load_tokens():
-    if os.path.exists(TOKEN_FILE):
-        with open(TOKEN_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
-
-def save_tokens(tokens):
-    with open(TOKEN_FILE, "w", encoding="utf-8") as f:
-        json.dump(tokens, f, ensure_ascii=False, indent=2)
+__all__ = ["load_tokens", "save_tokens"]

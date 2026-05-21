@@ -3,6 +3,10 @@ save/
 data/
 __pycache__/
 venv/
+frontend/node_modules/
+frontend/.vite/
+cookies/*
+!cookies/.gitkeep
 
 dl.txt
 todolist.txt
@@ -13,3 +17,4 @@ token.json
 cli.gemini.cmd
 
 module/cookies/*
+chromeExtension/static/secret/key.local.js

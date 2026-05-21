@@ -1,0 +1,43 @@
+$font-sans:
+  'Segoe UI',
+  'Noto Sans TC',
+  'PingFang TC',
+  'Microsoft JhengHei',
+  sans-serif;
+$font-mono: Consolas, 'Courier New', monospace;
+
+$slate-950: #0f172a;
+$slate-900: #0f172a;
+$slate-700: #334155;
+$slate-600: #475569;
+$slate-500: #64748b;
+$slate-400: #94a3b8;
+$slate-300: #cbd5e1;
+$slate-200: #e2e8f0;
+$slate-100: #f1f5f9;
+$slate-50: #f8fafc;
+
+$blue-600: #2563eb;
+$blue-500: #0ea5e9;
+$green-700: #15803d;
+$green-500: #22c55e;
+$red-700: #b91c1c;
+$red-500: #ef4444;
+$orange-700: #c2410c;
+$violet-700: #6d28d9;
+
+$surface: rgba(255, 255, 255, 0.92);
+$surface-soft: #f8fafc;
+$surface-outline: rgba(148, 163, 184, 0.16);
+$surface-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+
+$bp-xl: 1200px;
+$bp-lg: 1024px;
+$bp-md: 900px;
+$bp-sm: 640px;
+
+@mixin down($width) {
+  @media (max-width: $width) {
+    @content;
+  }
+}

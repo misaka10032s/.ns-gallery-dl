@@ -1,0 +1,147 @@
+@use './tokens' as *;
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border: 0;
+  border-radius: 0.85rem;
+  padding: 0.72rem 1rem;
+  cursor: pointer;
+  transition:
+    transform 0.14s ease,
+    opacity 0.14s ease,
+    background 0.14s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+    transform: none;
+  }
+}
+
+.btn--primary {
+  background: linear-gradient(135deg, $blue-600, $blue-500);
+  color: #ffffff;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.2);
+}
+
+.btn--ghost {
+  background: $slate-200;
+  color: $slate-900;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+}
+
+.btn--danger {
+  background: #fee2e2;
+  color: $red-700;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
+.btn--small {
+  padding: 0.45rem 0.7rem;
+  border-radius: 0.7rem;
+}
+
+.input,
+.select,
+.textarea {
+  width: 100%;
+  border: 1px solid $slate-300;
+  background: #ffffff;
+  color: $slate-900;
+  border-radius: 0.9rem;
+  padding: 0.78rem 0.9rem;
+}
+
+.textarea {
+  resize: vertical;
+}
+
+.queue-badge,
+.summary-pill,
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.86rem;
+}
+
+.summary-pill {
+  background: $slate-200;
+  color: $slate-900;
+}
+
+.summary-pill--queued,
+.status-chip--queued {
+  background: rgba(124, 58, 237, 0.12);
+  color: $violet-700;
+}
+
+.summary-pill--running,
+.status-chip--running {
+  background: rgba(37, 99, 235, 0.12);
+  color: $blue-600;
+}
+
+.summary-pill--success,
+.status-chip--success {
+  background: rgba(34, 197, 94, 0.12);
+  color: $green-700;
+}
+
+.summary-pill--failed,
+.status-chip--failed {
+  background: rgba(239, 68, 68, 0.12);
+  color: $red-700;
+}
+
+.summary-pill--skipped,
+.status-chip--skipped {
+  background: rgba(249, 115, 22, 0.12);
+  color: $orange-700;
+}
+
+.status-chip {
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.status-summary,
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.chip-list {
+  margin-top: 0.95rem;
+}
+
+.filter-chip {
+  border: 1px solid $slate-300;
+  background: $slate-50;
+  cursor: pointer;
+
+  &--active {
+    background: $blue-600;
+    color: #ffffff;
+    border-color: $blue-600;
+  }
+}
+
+.toggle {
+  display: inline-flex;
+  gap: 0.55rem;
+  align-items: center;
+  color: $slate-700;
+}

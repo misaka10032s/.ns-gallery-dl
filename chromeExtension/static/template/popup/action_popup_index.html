@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NS Media Hub</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 12px;
+            width: 320px;
+            font-family: "Segoe UI", "Microsoft JhengHei", sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
+        }
+        .card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 12px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+            margin-bottom: 12px;
+        }
+        .title {
+            margin: 0 0 4px;
+            font-size: 16px;
+            font-weight: 700;
+        }
+        .subtitle, .muted {
+            color: #64748b;
+            font-size: 12px;
+        }
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 12px;
+            background: #e2e8f0;
+        }
+        .chip.ok { background: rgba(34, 197, 94, 0.12); color: #15803d; }
+        .chip.bad { background: rgba(239, 68, 68, 0.12); color: #b91c1c; }
+        button {
+            border: 0;
+            border-radius: 10px;
+            padding: 9px 12px;
+            cursor: pointer;
+            font: inherit;
+        }
+        .primary {
+            background: linear-gradient(135deg, #2563eb, #0ea5e9);
+            color: white;
+            flex: 1 1 140px;
+        }
+        .ghost {
+            background: #e2e8f0;
+            color: #0f172a;
+            flex: 1 1 130px;
+        }
+        .full {
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <section class="card">
+        <h3 class="title">NS Media Hub</h3>
+        <div class="subtitle">本機狀態與目前分頁快速操作</div>
+        <div class="row">
+            <span id="server-chip" class="chip">檢查中...</span>
+            <span id="queue-chip" class="chip">Queue --</span>
+        </div>
+    </section>
+
+    <section class="card">
+        <div id="tab-title" class="title">目前分頁</div>
+        <div id="tab-url" class="subtitle">讀取中...</div>
+        <div class="row">
+            <button id="download-current" class="primary full" type="button">下載目前頁面</button>
+        </div>
+        <div class="row">
+            <button id="open-dashboard" class="ghost" type="button">開啟 Dashboard</button>
+            <button id="open-jobs" class="ghost" type="button">開啟 Jobs</button>
+            <button id="open-history" class="ghost" type="button">開啟 History</button>
+        </div>
+    </section>
+
+    <script type="module" src="action_popup_index.js"></script>
+</body>
+</html>

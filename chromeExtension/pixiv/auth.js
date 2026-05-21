@@ -1,3 +1,5 @@
+import { sendOffscreenMessage } from '../background/offscreen.js';
+
 // chromeExtension/pixiv/auth.js
 
 // This function sets up the listener for the Pixiv OAuth callback.
@@ -34,8 +36,7 @@ function handleAuthCode(code) {
 
 // This function sends a message to the background script to copy text.
 async function copyTextToClipboard(text) {
-  await chrome.runtime.sendMessage({
-    target: 'offscreen',
+  await sendOffscreenMessage({
     type: 'copy-to-clipboard',
     data: text,
   });
