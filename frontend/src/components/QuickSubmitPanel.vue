@@ -9,6 +9,7 @@ const inputValue = ref('')
 const providerHint = ref('')
 
 const queuedPreview = computed(() => store.queue.pending.slice(0, 4))
+const queueSummary = computed(() => `佇列 ${store.queue.total}`)
 
 async function submitLinks() {
   const count = await store.submitLinks(inputValue.value, providerHint.value)
@@ -33,9 +34,9 @@ async function pasteLinks() {
     description="貼上多個網址後直接排入 queue，可指定 provider 或交給系統自動判斷。"
     icon-label="Q"
     :badge-value="store.queue.total"
+    :summary-text="queueSummary"
     panel-class="quick-submit"
     :compact-max-width="1200"
-    floating-offset="1rem"
   >
 
     <label class="field-label" for="quick-submit-input">URL 清單</label>

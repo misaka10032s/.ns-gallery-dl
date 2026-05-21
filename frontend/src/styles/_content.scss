@@ -153,6 +153,7 @@
   display: flex;
   align-items: center;
   gap: 0.9rem;
+  flex-wrap: wrap;
 }
 
 .history-group summary::-webkit-details-marker {
@@ -173,6 +174,27 @@
   padding: 0.85rem;
   border-radius: 0.95rem;
   background: $surface-soft;
+}
+
+.history-item--selected {
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.history-group--selected {
+  border-color: rgba(37, 99, 235, 0.24);
+}
+
+.history-group__selected-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.12);
+  color: $blue-600;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .history-item__checkbox {
@@ -233,8 +255,21 @@
   margin-top: 0.9rem;
 }
 
+.history-range-buttons {
+  gap: 0.5rem;
+}
+
 .history-results-actions {
   justify-content: flex-end;
+}
+
+.history-results-heading h2,
+.history-results-heading p {
+  white-space: nowrap;
+}
+
+.history-results-actions .btn {
+  margin-left: auto;
 }
 
 .history-virtual-list {
@@ -245,14 +280,14 @@
 
 .selection-preview {
   margin: 0;
-  min-height: 18rem;
+  min-height: 12rem;
   padding: 0.85rem;
   border-radius: 0.9rem;
-  background: $slate-950;
-  color: $slate-200;
+  background: #ffffff;
+  color: $slate-900;
   overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
+  resize: vertical;
+  line-height: 1.45;
 }
 
 .helper-list {

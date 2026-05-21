@@ -63,6 +63,16 @@ const groupedDates = computed(() => Object.keys(groupedEntries.value).sort((left
 const selectedOutput = computed(() =>
   jsonMode.value ? JSON.stringify(selectedUrls.value, null, 2) : selectedUrls.value.join('\n'),
 )
+const selectedUrlSet = computed(() => new Set(selectedUrls.value))
+const selectedCountByDate = computed(() =>
+  Object.fromEntries(
+    groupedDates.value.map((date) => [
+      date,
+      (groupedEntries.value[date] ?? []).reduce((count, item) => count + (selectedUrlSet.value.has(item.url) ? 1 : 0), 0),
+    ]),
+  ),
+)
+const selectedSummary = computed(() => (selectedUrls.value.length ? `已選 ${selectedUrls.value.length}` : '未選'))
 const virtualGroups = computed(() =>
   groupedDates.value.map((date) => {
     const items = groupedEntries.value[date] ?? []
@@ -71,6 +81,7 @@ const virtualGroups = computed(() =>
       date,
       items,
       expanded,
+      selectedCount: selectedCountByDate.value[date] ?? 0,
       height: expanded ? historyGroupBaseHeight + items.length * historyItemEstimatedHeight : historyGroupBaseHeight,
     }
   }),
@@ -235,7 +246,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <section class="panel-card">
+    <section class="panel-card history-filters-panel">
       <div class="filters-grid filters-grid--wide history-filter-grid">
         <input v-model="search" class="input history-filter-grid__search" type="search" placeholder="搜尋 URL、provider、domain、下載路徑..." />
         <select v-model="statusFilter" class="select">
@@ -279,8 +290,8 @@ onBeforeUnmount(() => {
 
     <div class="split-layout">
       <section class="panel-card">
-        <div class="panel-card__header">
-          <div>
+        <div class="panel-card__header history-results-header">
+          <div class="history-results-heading">
             <h2>篩選結果</h2>
             <p>共 {{ filteredEntries.length }} / {{ allEntries.length }} 筆。</p>
           </div>
@@ -296,17 +307,24 @@ onBeforeUnmount(() => {
             v-for="group in visibleGroups"
             :key="group.date"
             class="history-group"
+            :class="{ 'history-group--selected': group.selectedCount > 0 }"
             :open="group.expanded"
           >
             <summary @click.prevent="toggleGroup(group.date)">
               <div class="history-group__summary">
                 <strong>{{ formatDate(group.date) }}</strong>
                 <span class="muted-text">共 {{ group.items.length }} 筆</span>
+                <span v-if="group.selectedCount" class="history-group__selected-count">已選 {{ group.selectedCount }}</span>
               </div>
             </summary>
 
             <div v-if="group.expanded" class="history-group__body">
-              <article v-for="item in group.items" :key="`${group.date}-${item.url}`" class="history-item">
+              <article
+                v-for="item in group.items"
+                :key="`${group.date}-${item.url}`"
+                class="history-item"
+                :class="{ 'history-item--selected': isSelected(item.url) }"
+              >
                 <label class="history-item__checkbox">
                   <input :checked="isSelected(item.url)" type="checkbox" @change="toggleSelection(item.url)" />
                 </label>
@@ -343,9 +361,10 @@ onBeforeUnmount(() => {
         description="可直接複製或重新送回 queue。"
         icon-label="S"
         :badge-value="selectedUrls.length"
-        panel-class="panel-card--sticky history-selection-panel"
+        :summary-text="selectedSummary"
+        panel-class="history-selection-panel"
+        desktop-panel-class="panel-card--sticky"
         :compact-max-width="1200"
-        floating-offset="5.5rem"
       >
         <div class="history-selection-heading">
           <strong>已選擇 {{ selectedUrls.length }} 筆</strong>
@@ -362,7 +381,14 @@ onBeforeUnmount(() => {
           <button class="btn btn--ghost" type="button" :disabled="!selectedUrls.length" @click="clearSelection">清空選取</button>
         </div>
 
-        <pre class="selection-preview">{{ selectedOutput || '尚未選取任何 URL。' }}</pre>
+        <div v-if="!selectedUrls.length" class="empty-state empty-state--compact">尚未選取任何 URL。</div>
+        <textarea
+          v-else
+          class="textarea selection-preview"
+          :rows="jsonMode ? 12 : 8"
+          readonly
+          :value="selectedOutput"
+        ></textarea>
       </CompactPanelCard>
     </div>
   </section>

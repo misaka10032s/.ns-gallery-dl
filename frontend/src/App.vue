@@ -28,6 +28,8 @@ onMounted(() => {
       </aside>
     </main>
 
+    <div id="compact-panel-dock" class="compact-panel-dock" />
+
     <ToastStack :items="store.notifications" @dismiss="store.removeNotification" />
   </div>
 </template>
