@@ -166,8 +166,23 @@ function selectAllVisible() {
   selectedUrls.value = Array.from(new Set(filteredEntries.value.map((item) => item.url)))
 }
 
+function clearAllVisible() {
+  const visible = new Set(filteredEntries.value.map((item) => item.url))
+  selectedUrls.value = selectedUrls.value.filter((url) => !visible.has(url))
+}
+
 function clearSelection() {
   selectedUrls.value = []
+}
+
+function selectDateGroup(date) {
+  const urls = (groupedEntries.value[date] ?? []).map((item) => item.url)
+  selectedUrls.value = Array.from(new Set([...selectedUrls.value, ...urls]))
+}
+
+function clearDateGroup(date) {
+  const urls = new Set((groupedEntries.value[date] ?? []).map((item) => item.url))
+  selectedUrls.value = selectedUrls.value.filter((url) => !urls.has(url))
 }
 
 function isExpanded(date) {
@@ -297,6 +312,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="button-row history-results-actions">
             <button class="btn btn--ghost btn--small" type="button" @click="selectAllVisible">全選目前結果</button>
+            <button class="btn btn--ghost btn--small" type="button" @click="clearAllVisible">清空目前選取</button>
           </div>
         </div>
 
@@ -315,6 +331,17 @@ onBeforeUnmount(() => {
                 <strong>{{ formatDate(group.date) }}</strong>
                 <span class="muted-text">共 {{ group.items.length }} 筆</span>
                 <span v-if="group.selectedCount" class="history-group__selected-count">已選 {{ group.selectedCount }}</span>
+                <span class="history-day-actions">
+                  <button class="btn btn--ghost btn--small" type="button" @click.stop="selectDateGroup(group.date)">本日全選</button>
+                  <button
+                    class="btn btn--ghost btn--small"
+                    type="button"
+                    :disabled="!group.selectedCount"
+                    @click.stop="clearDateGroup(group.date)"
+                  >
+                    清空本日
+                  </button>
+                </span>
               </div>
             </summary>
 
@@ -375,12 +402,6 @@ onBeforeUnmount(() => {
           <span>JSON 輸出</span>
         </label>
 
-        <div class="button-row history-selection-actions">
-          <button class="btn btn--primary" type="button" :disabled="!selectedUrls.length" @click="requeueSelected">重送所選</button>
-          <button class="btn btn--ghost" type="button" :disabled="!selectedUrls.length" @click="copySelection">複製</button>
-          <button class="btn btn--ghost" type="button" :disabled="!selectedUrls.length" @click="clearSelection">清空選取</button>
-        </div>
-
         <div v-if="!selectedUrls.length" class="empty-state empty-state--compact">尚未選取任何 URL。</div>
         <textarea
           v-else
@@ -389,6 +410,12 @@ onBeforeUnmount(() => {
           readonly
           :value="selectedOutput"
         ></textarea>
+
+        <div class="button-row history-selection-actions">
+          <button class="btn btn--primary" type="button" :disabled="!selectedUrls.length" @click="requeueSelected">重送所選</button>
+          <button class="btn btn--ghost" type="button" :disabled="!selectedUrls.length" @click="copySelection">複製</button>
+          <button class="btn btn--ghost" type="button" :disabled="!selectedUrls.length" @click="clearSelection">清空選取</button>
+        </div>
       </CompactPanelCard>
     </div>
   </section>

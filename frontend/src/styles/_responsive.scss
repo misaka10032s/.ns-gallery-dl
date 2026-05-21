@@ -281,6 +281,27 @@
     flex: 0 0 auto;
   }
 
+  .quick-submit__actions,
+  .history-selection-actions,
+  .history-item__actions,
+  .history-day-actions {
+    gap: 0.4rem;
+  }
+
+  .quick-submit__actions .btn,
+  .history-selection-actions .btn,
+  .history-item__actions .btn,
+  .history-day-actions .btn,
+  .history-results-actions .btn {
+    width: auto;
+    min-width: 0;
+    min-height: 0;
+    flex: 0 0 auto;
+    padding: 0.38rem 0.62rem;
+    border-radius: 0.68rem;
+    font-size: 0.78rem;
+  }
+
   .chip-list {
     gap: 0.35rem;
     margin-top: 0.65rem;
@@ -294,10 +315,6 @@
   .history-group__summary {
     flex-wrap: wrap;
     gap: 0.5rem;
-  }
-
-  .history-selection-actions .btn {
-    min-height: 2.9rem;
   }
 
   .compact-panel--drawer {

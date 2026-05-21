@@ -197,6 +197,13 @@
   white-space: nowrap;
 }
 
+.history-day-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
 .history-item__checkbox {
   padding-top: 0.4rem;
 }
@@ -270,6 +277,16 @@
 
 .history-results-actions .btn {
   margin-left: auto;
+}
+
+.quick-submit__actions,
+.history-selection-actions,
+.history-results-actions,
+.history-day-actions,
+.history-item__actions {
+  .btn {
+    white-space: nowrap;
+  }
 }
 
 .history-virtual-list {

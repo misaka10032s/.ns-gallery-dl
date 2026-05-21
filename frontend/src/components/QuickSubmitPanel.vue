@@ -6,16 +6,14 @@ import { useHubStore } from '../stores/hub'
 
 const store = useHubStore()
 const inputValue = ref('')
-const providerHint = ref('')
 
 const queuedPreview = computed(() => store.queue.pending.slice(0, 4))
-const queueSummary = computed(() => `佇列 ${store.queue.total}`)
+const queueSummary = computed(() => `待處理 ${store.queue.pending.length}`)
 
 async function submitLinks() {
-  const count = await store.submitLinks(inputValue.value, providerHint.value)
+  const count = await store.submitLinks(inputValue.value)
   if (count > 0) {
     inputValue.value = ''
-    providerHint.value = ''
   }
 }
 
@@ -31,7 +29,7 @@ async function pasteLinks() {
 <template>
   <CompactPanelCard
     title="快速送件"
-    description="貼上多個網址後直接排入 queue，可指定 provider 或交給系統自動判斷。"
+    description="貼上網址後直接排入 queue，provider 由系統自動判斷。"
     icon-label="Q"
     :badge-value="store.queue.total"
     :summary-text="queueSummary"
@@ -47,22 +45,6 @@ async function pasteLinks() {
       rows="10"
       placeholder="每行一個網址，或以空白、逗號分隔。"
     />
-
-    <div class="field-row">
-      <div class="field">
-        <label class="field-label" for="provider-hint">Provider</label>
-        <select id="provider-hint" v-model="providerHint" class="select">
-          <option value="">自動判斷</option>
-          <option value="gallery-dl">gallery-dl</option>
-          <option value="ytdlp">yt-dlp</option>
-        </select>
-      </div>
-
-      <div class="field field--fit">
-        <label class="field-label">Queue 狀態</label>
-        <div class="queue-badge">{{ store.queue.total }} 項待處理 / 執行中</div>
-      </div>
-    </div>
 
     <div class="button-row quick-submit__actions">
       <button class="btn btn--primary" type="button" :disabled="store.isLoading('submit')" @click="submitLinks">
