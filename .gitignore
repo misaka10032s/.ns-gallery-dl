@@ -17,5 +17,5 @@ token.json
 cli.gemini.cmd
 
 module/cookies/*
-chromeExtension/static/secret/key.local.js
+chromeExtension/static/secret/*
 app/ui/assets/*
