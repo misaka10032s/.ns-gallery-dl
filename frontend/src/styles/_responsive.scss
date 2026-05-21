@@ -51,6 +51,10 @@
   .field-row {
     flex-direction: column;
   }
+
+  .brand-subtitle {
+    display: none;
+  }
 }
 
 @include down($bp-md) {
@@ -105,18 +109,38 @@
     padding: 1rem;
   }
 
-  .brand-subtitle,
-  .sync-text {
+  .app-header__brand-copy {
     display: none;
   }
 
   .app-header__meta {
     gap: 0.5rem;
+    flex-wrap: nowrap;
+    align-items: center;
   }
 
   .header-chip {
-    padding: 0.34rem 0.55rem;
+    padding: 0.34rem 0.48rem;
     font-size: 0.76rem;
+  }
+
+  .header-chip--pending {
+    display: none;
+  }
+
+  .header-chip__label,
+  .app-header__refresh-text,
+  .sync-text__full {
+    display: none;
+  }
+
+  .app-header__refresh-icon,
+  .sync-text__compact {
+    display: inline;
+  }
+
+  .app-header__refresh {
+    padding-inline: 0.65rem;
   }
 
   .compact-panel__intro {
@@ -132,6 +156,21 @@
   .compact-panel__toggle {
     padding: 0.4rem 0.65rem;
     font-size: 0.86rem;
+  }
+
+  .compact-panel__launcher {
+    left: 0.75rem;
+    right: 0.75rem;
+    padding: 0.7rem 0.85rem;
+  }
+
+  .compact-panel__launcher-state {
+    font-size: 0.84rem;
+  }
+
+  .compact-panel--drawer {
+    left: 0.75rem;
+    right: 0.75rem;
   }
 
   .panel-card,
@@ -170,5 +209,9 @@
   .toast {
     min-width: 0;
     width: calc(100vw - 2rem);
+  }
+
+  .toast-stack {
+    bottom: 6.5rem;
   }
 }

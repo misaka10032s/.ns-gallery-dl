@@ -344,6 +344,8 @@ onBeforeUnmount(() => {
         icon-label="S"
         :badge-value="selectedUrls.length"
         panel-class="panel-card--sticky history-selection-panel"
+        :compact-max-width="1200"
+        floating-offset="5.5rem"
       >
         <div class="history-selection-heading">
           <strong>已選擇 {{ selectedUrls.length }} 筆</strong>

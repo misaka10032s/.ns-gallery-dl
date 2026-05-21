@@ -34,6 +34,8 @@ async function pasteLinks() {
     icon-label="Q"
     :badge-value="store.queue.total"
     panel-class="quick-submit"
+    :compact-max-width="1200"
+    floating-offset="1rem"
   >
 
     <label class="field-label" for="quick-submit-input">URL 清單</label>

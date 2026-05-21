@@ -19,6 +19,12 @@ const navItems = [
 const queueTotal = computed(() => store.queue.total || store.dashboard.queue.total || 0)
 const pendingCount = computed(() => store.queue.pending.length || store.dashboard.queue.pending.length || 0)
 const syncLabel = computed(() => (store.lastSyncAt ? formatDateTime(store.lastSyncAt) : '尚未同步'))
+const compactSyncLabel = computed(() => {
+  if (!store.lastSyncAt) return '同步 --:--'
+  const date = new Date(store.lastSyncAt)
+  if (Number.isNaN(date.getTime())) return '同步 --:--'
+  return `同步 ${date.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' })}`
+})
 
 async function refreshOverview() {
   await Promise.all([
@@ -34,7 +40,7 @@ async function refreshOverview() {
   <header class="app-header">
     <div class="app-header__brand">
       <div class="brand-mark">NS</div>
-      <div>
+      <div class="app-header__brand-copy">
         <div class="brand-title">NS Media Hub</div>
         <div class="brand-subtitle">下載 / 歷史 / Bot / Cookie 一體化控制台</div>
       </div>
@@ -55,13 +61,26 @@ async function refreshOverview() {
     <div class="app-header__meta">
       <div class="app-header__chips">
         <div class="header-chip" :class="store.apiHealthy ? 'header-chip--success' : 'header-chip--danger'">
-          {{ store.apiHealthy ? 'API 已連線' : 'API 連線異常' }}
+          <span class="header-chip__icon" aria-hidden="true">{{ store.apiHealthy ? '●' : '!' }}</span>
+          <span class="header-chip__label">{{ store.apiHealthy ? '已連線' : '異常' }}</span>
         </div>
-        <div class="header-chip">Queue {{ queueTotal }}</div>
-        <div class="header-chip">Pending {{ pendingCount }}</div>
+        <div class="header-chip">
+          <span class="header-chip__icon" aria-hidden="true">Q</span>
+          <span class="header-chip__label">{{ queueTotal }}</span>
+        </div>
+        <div class="header-chip header-chip--pending">
+          <span class="header-chip__icon" aria-hidden="true">P</span>
+          <span class="header-chip__label">{{ pendingCount }}</span>
+        </div>
       </div>
-      <button class="btn btn--ghost btn--small app-header__refresh" type="button" @click="refreshOverview">重新整理</button>
-      <div class="sync-text">最後同步：{{ syncLabel }}</div>
+      <button class="btn btn--ghost btn--small app-header__refresh" type="button" @click="refreshOverview">
+        <span class="app-header__refresh-icon" aria-hidden="true">↻</span>
+        <span class="app-header__refresh-text">重新整理</span>
+      </button>
+      <div class="sync-text">
+        <span class="sync-text__full">最後同步：{{ syncLabel }}</span>
+        <span class="sync-text__compact">{{ compactSyncLabel }}</span>
+      </div>
     </div>
   </header>
 </template>
