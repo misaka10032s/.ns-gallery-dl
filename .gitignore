@@ -18,3 +18,4 @@ cli.gemini.cmd
 
 module/cookies/*
 chromeExtension/static/secret/key.local.js
+app/ui/assets/*

@@ -262,13 +262,15 @@ onBeforeUnmount(() => {
     </div>
 
     <section class="panel-card history-filters-panel">
-      <div class="filters-grid filters-grid--wide history-filter-grid">
+      <div class="filters-grid-text filters-grid--wide history-filter-grid">
         <input v-model="search" class="input history-filter-grid__search" type="search" placeholder="搜尋 URL、provider、domain、下載路徑..." />
+      </div>
+      <div class="filters-grid filters-grid--wide history-filter-grid">
         <select v-model="statusFilter" class="select">
           <option value="all">所有狀態</option>
-          <option value="success">success</option>
-          <option value="failed">failed</option>
-          <option value="skipped">skipped</option>
+          <option value="success">成功</option>
+          <option value="failed">失敗</option>
+          <option value="skipped">跳過</option>
         </select>
         <select v-model="providerFilter" class="select">
           <option value="all">所有 provider</option>
@@ -311,8 +313,8 @@ onBeforeUnmount(() => {
             <p>共 {{ filteredEntries.length }} / {{ allEntries.length }} 筆。</p>
           </div>
           <div class="button-row history-results-actions">
-            <button class="btn btn--ghost btn--small" type="button" @click="selectAllVisible">全選目前結果</button>
-            <button class="btn btn--ghost btn--small" type="button" @click="clearAllVisible">清空目前選取</button>
+            <button class="btn btn--ghost btn--small" type="button" @click="selectAllVisible">全選</button>
+            <button class="btn btn--ghost btn--small" type="button" @click="clearAllVisible">清空</button>
           </div>
         </div>
 
@@ -332,14 +334,14 @@ onBeforeUnmount(() => {
                 <span class="muted-text">共 {{ group.items.length }} 筆</span>
                 <span v-if="group.selectedCount" class="history-group__selected-count">已選 {{ group.selectedCount }}</span>
                 <span class="history-day-actions">
-                  <button class="btn btn--ghost btn--small" type="button" @click.stop="selectDateGroup(group.date)">本日全選</button>
+                  <button class="btn btn--ghost btn--small" type="button" @click.stop="selectDateGroup(group.date)">全選</button>
                   <button
                     class="btn btn--ghost btn--small"
                     type="button"
                     :disabled="!group.selectedCount"
                     @click.stop="clearDateGroup(group.date)"
                   >
-                    清空本日
+                    清空
                   </button>
                 </span>
               </div>

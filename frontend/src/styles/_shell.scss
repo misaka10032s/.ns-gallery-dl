@@ -442,8 +442,12 @@
   grid-template-columns: minmax(240px, 2fr) repeat(4, minmax(150px, 1fr)) auto;
 }
 
+.filters-grid-text {
+  margin-bottom: 0.75rem;
+}
+
 .history-filter-grid {
-  grid-template-columns: minmax(240px, 2fr) repeat(4, minmax(140px, 1fr));
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
 }
 
 .field,
