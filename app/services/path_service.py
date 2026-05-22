@@ -11,11 +11,13 @@ from app.domain.enums import Provider
 CATEGORY_ALIASES = {
     "facebook.com": "facebook",
     "fb.watch": "facebook",
+    "nhentai.net": "nhentai",
     "pixiv.net": "pixiv",
     "twitter.com": "x",
     "x.com": "x",
     "youtube.com": "youtube",
     "youtu.be": "youtube",
+    "wnacg.com": "wnacg",
 }
 
 

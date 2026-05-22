@@ -52,7 +52,9 @@ def download_nhentai(url: str, output_root: Path, max_threads: int = 5) -> str:
     image_urls: list[str] = []
     for thumb in soup.find_all("a", class_="gallerythumb"):
         img_tag = thumb.find("img")
-        thumb_url = img_tag.get("data-src") if img_tag else None
+        thumb_url = None
+        if img_tag:
+            thumb_url = img_tag.get("data-src") or img_tag.get("src")
         if not thumb_url:
             continue
         full = re.sub(r"//t(\d+)\.nhentai\.net", r"//i\1.nhentai.net", thumb_url)
@@ -65,6 +67,9 @@ def download_nhentai(url: str, output_root: Path, max_threads: int = 5) -> str:
         if full.startswith("//"):
             full = f"https:{full}"
         image_urls.append(full)
+
+    if not image_urls:
+        return "failed"
 
     failed: list[str] = []
     semaphore = BoundedSemaphore(max_threads)
