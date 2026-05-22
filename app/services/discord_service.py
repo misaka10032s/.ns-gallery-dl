@@ -4,7 +4,7 @@ import asyncio
 import re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import urlparse
 
 import aiohttp
 import discord
@@ -24,14 +24,15 @@ from app.config.settings import (
 from app.domain.enums import JobSource, JobStatus, Provider
 from app.domain.jobs import JobRequest
 from app.services import download_service, history_service, queue_service
-from app.services.path_service import discord_root, unique_file_path
+from app.services.path_service import discord_root, file_name_from_url, unique_file_path
 from app.services.token_service import load_tokens
 from app.storage.repositories import jobs_repo
 
 
 IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff"}
-URL_PATTERN = re.compile(r"https?://[^\s<>\"']+")
+URL_PATTERN = re.compile(r"(?:https?://)?(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}[^\s<>\"']*", re.IGNORECASE)
+URL_LIKE_PATTERN = re.compile(r"^(?:[a-z][a-z0-9+.-]*://|(?:www\.)?[a-z0-9.-]+\.[a-z]{2,})(?:[/?#].*)?$", re.IGNORECASE)
 
 _FB_QUEUED = "⏳"
 _FB_DONE = "✅"
@@ -75,18 +76,51 @@ def _guild_name(channel) -> str:
 
 
 def _is_supported_url(url: str) -> bool:
+    try:
+        url = download_service.normalize_url(url)
+    except ValueError:
+        return False
     host = normalize_domain(urlparse(url).hostname)
     if not host or not is_domain_allowed(host):
         return False
     return host_matches(host, GALLERY_DL_DOMAINS) or host_matches(host, YTDLP_DOMAINS)
 
 
-def _file_name_from_url(url: str, fallback: str = "image.jpg") -> str:
-    path_name = unquote(Path(urlparse(url).path).name)
-    return path_name if path_name and "." in path_name else fallback
+def _normalize_message_url(raw_url: str) -> str | None:
+    candidate = (raw_url or "").strip().strip("<>[](){}\"'`")
+    candidate = candidate.rstrip(".,!?;:")
+    if not candidate:
+        return None
+    expanded = download_service.expand_url_shortcut(candidate)
+    if expanded:
+        return expanded
+    if not URL_LIKE_PATTERN.fullmatch(candidate):
+        return None
+    try:
+        return download_service.normalize_url(candidate)
+    except ValueError:
+        return None
 
 
-def _save_direct_history(url: str, download_path: str, kind: str) -> None:
+def _extract_urls(text: str) -> list[str]:
+    urls: list[str] = []
+    seen: set[str] = set()
+    for match in URL_PATTERN.findall(text or ""):
+        url = _normalize_message_url(match)
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        urls.append(url)
+    for token in re.split(r"[\s,\u3000\t\r\n]+", text or ""):
+        shortcut = download_service.expand_url_shortcut(token.strip().strip("<>[](){}\"'`").rstrip(".,!?;:"))
+        if not shortcut or shortcut in seen:
+            continue
+        seen.add(shortcut)
+        urls.append(shortcut)
+    return urls
+
+
+def _save_direct_history(url: str, download_path: str, kind: str, guild_name: str | None = None) -> None:
     history_service.add_to_history(
         [
             {
@@ -95,7 +129,7 @@ def _save_direct_history(url: str, download_path: str, kind: str) -> None:
                 "source": JobSource.BOT.value,
                 "provider": Provider.DIRECT_FILE.value,
                 "download_path": download_path,
-                "meta": {"kind": kind},
+                "meta": {"kind": kind, "guild": guild_name} if guild_name else {"kind": kind},
             }
         ]
     )
@@ -116,7 +150,7 @@ async def _save_attachment(attachment: discord.Attachment, guild_name: str) -> b
     try:
         await attachment.save(path)
         jobs_repo.update_job(job_id, JobStatus.SUCCESS.value, download_path=str(path), meta=meta)
-        _save_direct_history(attachment.url, str(path), "attachment")
+        _save_direct_history(attachment.url, str(path), "attachment", guild_name)
         return True
     except Exception as exc:
         jobs_repo.update_job(job_id, JobStatus.FAILED.value, download_path=str(path), error=str(exc), meta=meta)
@@ -128,7 +162,7 @@ async def _save_attachment(attachment: discord.Attachment, guild_name: str) -> b
 
 async def _download_embed_image(url: str, guild_name: str) -> bool:
     root = discord_root(guild_name, "embeds")
-    path = unique_file_path(root, _file_name_from_url(url))
+    path = unique_file_path(root, file_name_from_url(url, "image.jpg"))
     meta = {"kind": "embed", "guild": guild_name}
     job_id = _create_bot_job(url, Provider.DIRECT_FILE, meta)
     queue_service.add_to_display(url)
@@ -141,7 +175,7 @@ async def _download_embed_image(url: str, guild_name: str) -> bool:
                     async for chunk in response.content.iter_chunked(8192):
                         handle.write(chunk)
         jobs_repo.update_job(job_id, JobStatus.SUCCESS.value, download_path=str(path), meta=meta)
-        _save_direct_history(url, str(path), "embed")
+        _save_direct_history(url, str(path), "embed", guild_name)
         return True
     except Exception as exc:
         jobs_repo.update_job(job_id, JobStatus.FAILED.value, download_path=str(path), error=str(exc), meta=meta)
@@ -153,19 +187,20 @@ async def _download_embed_image(url: str, guild_name: str) -> bool:
 
 def _run_download_url(url: str) -> bool:
     provider = download_service.classify_provider(url)
-    meta = {"kind": "url"}
+    meta = {"kind": "url", "provider_mode": "auto"}
     job_id = jobs_repo.create_job(url=url, provider=provider.value, source=JobSource.BOT.value, meta=meta)
     if not history_service.filter_by_history([url]):
         jobs_repo.update_job(job_id, JobStatus.SKIPPED.value, meta={**meta, "reason": "history"})
         return True
     jobs_repo.update_job(job_id, JobStatus.RUNNING.value, meta=meta)
-    result = download_service.download_request(JobRequest(url=url, source=JobSource.BOT, provider=provider), load_tokens())
+    result = download_service.download_request(JobRequest(url=url, source=JobSource.BOT, metadata=meta), load_tokens())
     jobs_repo.update_job(
         job_id,
         result.status.value,
         download_path=result.download_path,
         error=result.error,
         meta=result.metadata or meta,
+        provider=result.provider.value,
     )
     history_service.add_to_history([download_service.history_payload(url, JobSource.BOT, result)])
     return result.status in {JobStatus.SUCCESS, JobStatus.SKIPPED}
@@ -201,7 +236,7 @@ async def _collect_coros(message: discord.Message, before: discord.Message | Non
             if content_type in IMAGE_CONTENT_TYPES or Path(attachment.filename).suffix.lower() in IMAGE_EXTENSIONS:
                 coros.append(_save_attachment(attachment, guild_name))
 
-        for url in URL_PATTERN.findall(message.content or ""):
+        for url in _extract_urls(message.content or ""):
             if _is_supported_url(url):
                 coros.append(_download_url(url))
 
@@ -210,7 +245,7 @@ async def _collect_coros(message: discord.Message, before: discord.Message | Non
                 content_type = (attachment.content_type or "").split(";")[0].strip()
                 if content_type in IMAGE_CONTENT_TYPES or Path(attachment.filename).suffix.lower() in IMAGE_EXTENSIONS:
                     coros.append(_save_attachment(attachment, guild_name))
-            for url in URL_PATTERN.findall(snapshot.content or ""):
+            for url in _extract_urls(snapshot.content or ""):
                 if _is_supported_url(url):
                     coros.append(_download_url(url))
 
@@ -278,7 +313,7 @@ async def _cmd_download_channel(trigger: discord.Message) -> None:
             content_type = (attachment.content_type or "").split(";")[0].strip()
             if content_type in IMAGE_CONTENT_TYPES or Path(attachment.filename).suffix.lower() in IMAGE_EXTENSIONS:
                 coros.append(_save_attachment(attachment, guild_name))
-        for url in URL_PATTERN.findall(message.content or ""):
+        for url in _extract_urls(message.content or ""):
             if _is_supported_url(url) and url not in seen_urls:
                 seen_urls.add(url)
                 coros.append(_download_url(url))

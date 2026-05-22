@@ -23,11 +23,14 @@ def enqueue_requests(requests: list[JobRequest]) -> int:
     init_db()
     created = 0
     for request in requests:
+        meta = dict(request.metadata or {})
+        meta.setdefault("provider_mode", "forced" if request.provider else "auto")
+        provider = request.provider or download_service.classify_provider(request.url)
         job_id = jobs_repo.create_job(
             url=download_service.normalize_url(request.url),
-            provider=(request.provider or download_service.classify_provider(request.url)).value,
+            provider=provider.value,
             source=request.source.value,
-            meta=request.metadata,
+            meta=meta,
         )
         _queue.put(job_id)
         created += 1
@@ -66,12 +69,24 @@ def _run_job(job_id: int) -> None:
     if not job:
         return
     meta = json.loads(job.get("meta_json", "{}") or "{}")
-    request = JobRequest(url=job["url"], provider=Provider(job["provider"]), source=JobSource(job["source"]), metadata=meta)
+    provider_mode = meta.get("provider_mode")
+    if provider_mode is None:
+        provider_mode = "forced" if job["provider"] == Provider.DIRECT_FILE.value else "auto"
+        meta["provider_mode"] = provider_mode
+    provider = None if provider_mode == "auto" else Provider(job["provider"])
+    request = JobRequest(url=job["url"], provider=provider, source=JobSource(job["source"]), metadata=meta)
     jobs_repo.update_job(job_id, JobStatus.RUNNING.value, meta=meta)
     _current_url = job["url"]
     tokens = _load_tokens()
     result = download_service.download_request(request, tokens=tokens)
-    jobs_repo.update_job(job_id, result.status.value, download_path=result.download_path, error=result.error, meta=result.metadata or meta)
+    jobs_repo.update_job(
+        job_id,
+        result.status.value,
+        download_path=result.download_path,
+        error=result.error,
+        meta=result.metadata or meta,
+        provider=result.provider.value,
+    )
     history_service.add_to_history([download_service.history_payload(job["url"], request.source, result)])
 
 

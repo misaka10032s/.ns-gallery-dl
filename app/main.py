@@ -52,17 +52,10 @@ def _expand_shortcuts(line: str) -> str:
     value = line.strip().replace(" ", "")
     if not value or value.startswith("#"):
         return ""
+    expanded = download_service.expand_url_shortcut(value)
+    if expanded:
+        return expanded
     lower = value.lower()
-    if lower.startswith("pw") and lower[2:].isdigit():
-        return f"https://www.pixiv.net/artworks/{lower[2:]}"
-    if lower.startswith("pu") and lower[2:].isdigit():
-        return f"https://www.pixiv.net/users/{lower[2:]}"
-    if lower.startswith("p") and lower[1:].isdigit():
-        return f"https://www.pixiv.net/artworks/{lower[1:]}"
-    if lower.startswith("w") and lower[1:].isdigit():
-        return f"https://www.wnacg.com/photos-index-aid-{lower[1:]}.html"
-    if lower.startswith("n") and lower[1:].isdigit():
-        return f"https://nhentai.net/g/{lower[1:]}/"
     if lower == "x":
         return "https://x.com"
     if lower.startswith(("http://", "https://", "ytdlp://")):

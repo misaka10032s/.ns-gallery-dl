@@ -173,19 +173,38 @@ export const useHubStore = defineStore('hub', {
       return links.length
     },
     async requeueHistory(links) {
-      const cleaned = Array.from(new Set((links ?? []).filter(Boolean)))
+      const sourceEntries = Array.isArray(links) ? links : []
+      const mappedEntries = sourceEntries
+        .map((entry) => {
+          if (typeof entry === 'string') {
+            return this.historyEntries.find((item) => item.url === entry) || { url: entry }
+          }
+          return entry
+        })
+        .filter((entry) => entry?.url)
+      const cleaned = Array.from(new Map(mappedEntries.map((entry) => [entry.url, entry])).values())
       if (!cleaned.length) {
         this.notify('沒有可重新送出的紀錄。', 'error')
         return 0
       }
       const result = await this.runTask('requeue', () =>
-        apiRequest('/api/history/requeue', { method: 'POST', body: { links: cleaned } }),
+        apiRequest('/api/history/requeue', {
+          method: 'POST',
+          body: {
+            items: cleaned.map((entry) => ({
+              url: entry.url,
+              provider: entry.provider || null,
+              meta: entry.meta || {},
+            })),
+          },
+        }),
       )
       this.notify(result?.message || `Queued ${cleaned.length} links for download.`)
       await Promise.all([
         this.fetchDashboard({ silent: true }),
         this.fetchQueue({ silent: true }),
         this.fetchJobs({ silent: true }),
+        this.fetchHistory({ silent: true }),
       ])
       return cleaned.length
     },
@@ -216,6 +235,7 @@ export const useHubStore = defineStore('hub', {
         this.fetchDashboard({ silent: true }),
         this.fetchQueue({ silent: true }),
         this.fetchJobs({ silent: true }),
+        this.fetchHistory({ silent: true }),
       ])
     },
   },

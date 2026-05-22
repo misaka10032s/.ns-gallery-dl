@@ -57,7 +57,7 @@ export const contextMenus = {
         title: "下載此貼文",
         contexts: ["page"],
         script: async (info, tab) => {
-            await submitCurrentTarget(tab.url, { tab, providerHint: "ytdlp" });
+            await submitCurrentTarget(tab.url, { tab });
         },
         documentUrlPatterns: ["https://x.com/*", "https://twitter.com/*"]
     },

@@ -58,7 +58,8 @@ async function pasteLinks() {
       <div class="helper-list__title">小提醒</div>
       <ul>
         <li>Pixiv、nhentai、wnacg 會自動交給 gallery-dl。</li>
-        <li>YouTube、X、Facebook 會自動交給 yt-dlp。</li>
+        <li>YouTube、Facebook 會自動交給 yt-dlp。</li>
+        <li>X 會先嘗試 gallery-dl，必要時再自動回退到 yt-dlp。</li>
         <li>支援一次送出多個網址，並會保留 queue / jobs 紀錄。</li>
       </ul>
     </div>

@@ -36,16 +36,31 @@ def get_job(job_id: int) -> dict | None:
     return dict(row)
 
 
-def update_job(job_id: int, status: str, download_path: str = "", error: str = "", meta: dict | None = None) -> None:
+def update_job(
+    job_id: int,
+    status: str,
+    download_path: str = "",
+    error: str = "",
+    meta: dict | None = None,
+    provider: str | None = None,
+) -> None:
     current = get_job(job_id) or {}
     meta_payload = json.dumps(meta if meta is not None else json.loads(current.get("meta_json", "{}")), ensure_ascii=False)
     execute(
         """
         UPDATE jobs
-        SET status = ?, download_path = ?, error = ?, meta_json = ?, updated_at = ?
+        SET provider = ?, status = ?, download_path = ?, error = ?, meta_json = ?, updated_at = ?
         WHERE id = ?
         """,
-        (status, download_path, error, meta_payload, datetime.now().isoformat(timespec="seconds"), job_id),
+        (
+            provider or current.get("provider", ""),
+            status,
+            download_path,
+            error,
+            meta_payload,
+            datetime.now().isoformat(timespec="seconds"),
+            job_id,
+        ),
     )
 
 

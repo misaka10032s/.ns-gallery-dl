@@ -70,6 +70,13 @@ GALLERY_DL_DOMAINS = {
 }
 GALLERY_DL_DOMAINS.update(_csv_set(os.environ.get("BOT_EXTRA_GALLERYDL_DOMAINS", "")))
 
+MULTI_PROVIDER_DOMAINS = {
+    "facebook.com",
+    "fb.watch",
+    "twitter.com",
+    "x.com",
+}
+
 YTDLP_DOMAINS = {
     "facebook.com",
     "fb.watch",

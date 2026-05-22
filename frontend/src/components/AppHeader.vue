@@ -31,6 +31,8 @@ async function refreshOverview() {
     store.fetchDashboard({ silent: true }),
     store.fetchQueue({ silent: true }),
     store.fetchJobs({ silent: true }),
+    store.fetchHistory({ silent: true }),
+    store.fetchCookies({ silent: true }),
   ])
   store.notify('儀表板資料已更新。')
 }

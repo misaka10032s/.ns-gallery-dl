@@ -15,7 +15,6 @@ const SITE_ACTIONS = [
   {
     match: /(^|\.)x\.com$|(^|\.)twitter\.com$/i,
     label: '下載此貼文',
-    providerHint: 'ytdlp',
   },
   {
     match: /(^|\.)facebook\.com$|(^|\.)fb\.watch$/i,

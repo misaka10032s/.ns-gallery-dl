@@ -11,5 +11,9 @@ def submit_urls(
     metadata: dict | None = None,
     provider: Provider | None = None,
 ) -> int:
-    requests = [JobRequest(url=url, source=source, metadata=metadata or {}, provider=provider) for url in urls]
+    requests = [JobRequest(url=url, source=source, metadata=dict(metadata or {}), provider=provider) for url in urls]
+    return queue_service.enqueue_requests(requests)
+
+
+def submit_requests(requests: list[JobRequest]) -> int:
     return queue_service.enqueue_requests(requests)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from flask import Flask, jsonify, request
 
 from app.domain.enums import JobSource, Provider
@@ -47,7 +49,23 @@ def register(app: Flask) -> None:
             source = JobSource(job.get("source", JobSource.API.value))
         except ValueError:
             source = JobSource.API
+        meta = json.loads(job.get("meta_json", "{}") or "{}")
+        retry_meta = {
+            key: value
+            for key, value in meta.items()
+            if key not in {"attempted_providers", "attempts", "selected_provider"}
+        }
+        retry_meta["retry_of"] = job_id
         provider_value = job.get("provider")
-        provider = Provider(provider_value) if provider_value in {member.value for member in Provider} else None
-        count = browser_bridge_service.submit_urls([job["url"]], source=source, metadata={"retry_of": job_id}, provider=provider)
+        provider_mode = retry_meta.get("provider_mode")
+        if provider_mode is None:
+            provider_mode = "forced" if provider_value == Provider.DIRECT_FILE.value else "auto"
+            retry_meta["provider_mode"] = provider_mode
+        if provider_mode == "auto":
+            provider = None
+        elif provider_value in {member.value for member in Provider}:
+            provider = Provider(provider_value)
+        else:
+            provider = None
+        count = browser_bridge_service.submit_urls([job["url"]], source=source, metadata=retry_meta, provider=provider)
         return jsonify({"message": f"Queued {count} retry job.", "retry_of": job_id}), 202

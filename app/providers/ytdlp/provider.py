@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 from shutil import which
 from urllib.parse import urlparse
@@ -10,7 +11,7 @@ from app.config.settings import normalize_domain
 from app.domain.enums import JobStatus, Provider
 from app.domain.jobs import DownloadResult
 from app.providers.cookies.resolver import resolve_cookie_file
-from app.services.path_service import provider_root
+from app.services.path_service import provider_root, sanitize_component
 
 
 def _normalize_url(raw_url: str) -> str:
@@ -34,6 +35,40 @@ def _output_template(root: Path) -> str:
     return str(root / "[%(id)s] %(title).120s.%(ext)s")
 
 
+def _user_print_command(executable: str, url: str, cookie_path: str | None) -> list[str]:
+    command = [
+        executable,
+        "--print",
+        "%(uploader_id,uploader,channel_id,channel,creator,playlist_uploader|)s",
+        "--no-playlist",
+        "--skip-download",
+        "--no-warnings",
+    ]
+    if cookie_path:
+        command.extend(["--cookies", cookie_path])
+    command.append(url)
+    return command
+
+
+def _probe_user_root(executable: str, url: str, root: Path, cookie_path: str | None) -> Path:
+    try:
+        result = subprocess.run(
+            _user_print_command(executable, url, cookie_path),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+    except Exception:
+        return root
+    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if not lines:
+        return root
+    user = sanitize_component(lines[-1], "")
+    return root / user if user else root
+
+
 def _resolve_executable(name: str) -> str | None:
     local = ROOT_DIR / f"{name}.exe"
     if local.exists():
@@ -49,8 +84,8 @@ def _resolve_executable(name: str) -> str | None:
 def download(url: str) -> DownloadResult:
     url = _normalize_url(url)
     domain = normalize_domain(urlparse(url).hostname)
-    root = provider_root(Provider.YTDLP, domain)
     executable = _resolve_executable("yt-dlp")
+    root = provider_root(Provider.YTDLP, domain)
     if not executable:
         return DownloadResult(
             status=JobStatus.FAILED,
@@ -72,6 +107,8 @@ def download(url: str) -> DownloadResult:
         _output_template(root),
     ]
     cookie_path = resolve_cookie_file(url, Provider.YTDLP.value)
+    root = _probe_user_root(executable, url, root, cookie_path)
+    command[command.index("--output") + 1] = _output_template(root)
     if cookie_path:
         command.extend(["--cookies", cookie_path])
     ffmpeg = _resolve_executable("ffmpeg")
@@ -79,6 +116,22 @@ def download(url: str) -> DownloadResult:
         command.extend(["--ffmpeg-location", str(Path(ffmpeg).parent)])
     command.append(url)
 
-    result = subprocess.run(command, check=False)
-    status = JobStatus.SUCCESS if result.returncode == 0 else JobStatus.FAILED
-    return DownloadResult(status=status, provider=Provider.YTDLP, domain=domain, download_path=str(root))
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    output_lines: list[str] = []
+    for line in iter(process.stdout.readline, ""):
+        output_lines.append(line.rstrip())
+        sys.stdout.write(line)
+    process.wait()
+    status = JobStatus.SUCCESS if process.returncode == 0 else JobStatus.FAILED
+    error = ""
+    if status == JobStatus.FAILED:
+        lines = [line.strip() for line in output_lines if line.strip()]
+        error = lines[-1] if lines else "yt-dlp failed"
+    return DownloadResult(status=status, provider=Provider.YTDLP, domain=domain, download_path=str(root), error=error)

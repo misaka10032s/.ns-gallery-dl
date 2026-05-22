@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from flask import Flask, jsonify, request
 
-from app.domain.enums import JobSource
+from app.domain.enums import JobSource, Provider
+from app.domain.jobs import JobRequest
 from app.services import browser_bridge_service
 from app.services import history_service
 
@@ -35,11 +36,32 @@ def register(app: Flask) -> None:
     @app.route("/api/history/requeue", methods=["POST"])
     def requeue_history():
         payload = request.get_json() or {}
-        links = payload.get("links") or []
-        if not isinstance(links, list):
-            return jsonify({"error": '"links" must be a list of strings.'}), 400
-        cleaned = [item.strip() for item in links if isinstance(item, str) and item.strip()]
-        if not cleaned:
+        items = payload.get("items")
+        requests: list[JobRequest] = []
+        if isinstance(items, list):
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                url = item.get("url")
+                if not isinstance(url, str) or not url.strip():
+                    continue
+                provider_value = item.get("provider")
+                provider = Provider(provider_value) if provider_value in {member.value for member in Provider} else None
+                metadata = item.get("meta") if isinstance(item.get("meta"), dict) else {}
+                provider_mode = metadata.get("provider_mode")
+                if provider_mode is None:
+                    if provider == Provider.DIRECT_FILE:
+                        metadata["provider_mode"] = "forced"
+                    else:
+                        metadata["provider_mode"] = "auto"
+                        provider = None
+                requests.append(JobRequest(url=url.strip(), source=JobSource.MANUAL, provider=provider, metadata=metadata))
+        else:
+            links = payload.get("links") or []
+            if not isinstance(links, list):
+                return jsonify({"error": '"links" must be a list of strings.'}), 400
+            requests = [JobRequest(url=item.strip(), source=JobSource.MANUAL) for item in links if isinstance(item, str) and item.strip()]
+        if not requests:
             return jsonify({"error": "No valid links supplied."}), 400
-        count = browser_bridge_service.submit_urls(cleaned, source=JobSource.MANUAL)
+        count = browser_bridge_service.submit_requests(requests)
         return jsonify({"message": f"Queued {count} links for download."}), 202

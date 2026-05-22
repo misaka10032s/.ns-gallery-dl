@@ -211,7 +211,8 @@ async function copySelection() {
 }
 
 async function requeueSelected() {
-  const count = await store.requeueHistory(selectedUrls.value)
+  const selectedEntries = allEntries.value.filter((item) => selectedUrls.value.includes(item.url))
+  const count = await store.requeueHistory(selectedEntries)
   if (count > 0) {
     clearSelection()
   }
@@ -372,7 +373,7 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div class="history-item__actions">
-                  <button class="btn btn--ghost btn--small" type="button" @click="store.requeueHistory([item.url])">重送</button>
+                  <button class="btn btn--ghost btn--small" type="button" @click="store.requeueHistory([item])">重送</button>
                   <button class="btn btn--ghost btn--small" type="button" @click="toggleStatus(item)">
                     改為 {{ item.result === 'success' ? 'failed' : 'success' }}
                   </button>
