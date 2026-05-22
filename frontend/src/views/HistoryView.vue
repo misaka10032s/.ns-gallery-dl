@@ -234,10 +234,6 @@ watch(filteredEntries, (entries) => {
   selectedUrls.value = selectedUrls.value.filter((url) => visible.has(url))
   expandedDates.value = expandedDates.value.filter((date) => groupedEntries.value[date]?.length)
   nextTick(() => {
-    if (historyViewport.value) {
-      historyViewport.value.scrollTop = 0
-      historyScrollTop.value = 0
-    }
     updateViewportMetrics()
   })
 })
