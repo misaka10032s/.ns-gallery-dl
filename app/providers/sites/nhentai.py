@@ -35,6 +35,7 @@ def download_nhentai(url: str, output_root: Path, max_threads: int = 5) -> str:
         response = scraper.get(url)
         if response.status_code != 200:
             return "failed"
+        response.encoding = "utf-8"
     except Exception:
         return "failed"
 
