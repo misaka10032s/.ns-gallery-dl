@@ -91,26 +91,23 @@ const visibleWindow = computed(() => {
   const overscan = 4
   const viewportTop = historyScrollTop.value
   const viewportBottom = viewportTop + historyViewportHeight.value
-  let offset = 0
   let start = 0
   let end = virtualGroups.value.length
+  let offset = 0
+  let startFound = false
 
   for (let index = 0; index < virtualGroups.value.length; index += 1) {
-    const nextOffset = offset + virtualGroups.value[index].height
-    if (nextOffset >= viewportTop) {
+    const groupHeight = virtualGroups.value[index].height
+    const nextOffset = offset + groupHeight
+    if (!startFound && nextOffset >= viewportTop) {
       start = Math.max(0, index - overscan)
-      break
+      startFound = true
     }
-    offset = nextOffset
-  }
-
-  offset = 0
-  for (let index = 0; index < virtualGroups.value.length; index += 1) {
-    offset += virtualGroups.value[index].height
-    if (offset >= viewportBottom) {
+    if (startFound && nextOffset >= viewportBottom) {
       end = Math.min(virtualGroups.value.length, index + overscan + 1)
       break
     }
+    offset = nextOffset
   }
 
   return { start, end }

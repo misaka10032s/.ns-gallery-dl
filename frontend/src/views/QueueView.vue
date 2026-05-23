@@ -7,7 +7,7 @@ import { hostnameFromUrl } from '../utils/format'
 
 const store = useHubStore()
 const autoRefresh = ref(localStorage.getItem('nsmh-queue-autorefresh') !== '0')
-let timerId = 0
+let timerId = null
 
 const pendingGroups = computed(() => {
   return store.queue.pending.reduce((result, url) => {
@@ -18,9 +18,9 @@ const pendingGroups = computed(() => {
 })
 
 function clearTimer() {
-  if (timerId) {
+  if (timerId !== null) {
     window.clearInterval(timerId)
-    timerId = 0
+    timerId = null
   }
 }
 

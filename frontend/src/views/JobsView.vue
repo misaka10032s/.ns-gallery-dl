@@ -11,7 +11,7 @@ const status = ref('all')
 const provider = ref('all')
 const source = ref('all')
 const autoRefresh = ref(localStorage.getItem('nsmh-jobs-autorefresh') !== '0')
-let timerId = 0
+let timerId = null
 
 const filteredJobs = computed(() => {
   const keyword = search.value.trim().toLowerCase()
@@ -27,9 +27,9 @@ const filteredJobs = computed(() => {
 })
 
 function clearTimer() {
-  if (timerId) {
+  if (timerId !== null) {
     window.clearInterval(timerId)
-    timerId = 0
+    timerId = null
   }
 }
 

@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from urllib.parse import urlparse
 
-from app.storage.db import execute, fetch_all, fetch_one, insert
+from app.storage.db import connection, execute, fetch_all, fetch_one, insert
 
 
 def _domain_for_url(url: str) -> str:
@@ -44,24 +44,31 @@ def update_job(
     meta: dict | None = None,
     provider: str | None = None,
 ) -> None:
-    current = get_job(job_id) or {}
-    meta_payload = json.dumps(meta if meta is not None else json.loads(current.get("meta_json", "{}")), ensure_ascii=False)
-    execute(
-        """
-        UPDATE jobs
-        SET provider = ?, status = ?, download_path = ?, error = ?, meta_json = ?, updated_at = ?
-        WHERE id = ?
-        """,
-        (
-            provider or current.get("provider", ""),
-            status,
-            download_path,
-            error,
-            meta_payload,
-            datetime.now().isoformat(timespec="seconds"),
-            job_id,
-        ),
-    )
+    # Read current row and write update in a single connection so the two
+    # operations are atomic and don't open an extra round-trip.
+    with connection() as conn:
+        current = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        current = dict(current) if current else {}
+        meta_payload = json.dumps(
+            meta if meta is not None else json.loads(current.get("meta_json", "{}")),
+            ensure_ascii=False,
+        )
+        conn.execute(
+            """
+            UPDATE jobs
+            SET provider = ?, status = ?, download_path = ?, error = ?, meta_json = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                provider or current.get("provider", ""),
+                status,
+                download_path,
+                error,
+                meta_payload,
+                datetime.now().isoformat(timespec="seconds"),
+                job_id,
+            ),
+        )
 
 
 def list_recent(limit: int = 100) -> list[dict]:

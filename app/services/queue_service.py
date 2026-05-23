@@ -54,11 +54,15 @@ def get_state() -> dict:
     init_db()
     pending = jobs_repo.list_pending_urls()
     with _display_lock:
+        # Exclude _current_url from extras to avoid double-counting it in total
+        # (it could still appear in `pending` if the DB hasn't been updated to
+        # 'running' yet, but that window is tiny and self-corrects on next poll).
         extras = [url for url in _display_urls if url not in pending and url != _current_url]
+        current_snap = _current_url
     snapshot = QueueState(
-        current=_current_url,
+        current=current_snap,
         pending=pending + extras,
-        total=len(pending) + len(extras) + (1 if _current_url else 0),
+        total=len(pending) + len(extras) + (1 if current_snap else 0),
     )
     return {"current": snapshot.current, "pending": snapshot.pending, "total": snapshot.total}
 
