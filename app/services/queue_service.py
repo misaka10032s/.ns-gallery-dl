@@ -76,7 +76,8 @@ def _run_job(job_id: int) -> None:
     provider = None if provider_mode == "auto" else Provider(job["provider"])
     request = JobRequest(url=job["url"], provider=provider, source=JobSource(job["source"]), metadata=meta)
     jobs_repo.update_job(job_id, JobStatus.RUNNING.value, meta=meta)
-    _current_url = job["url"]
+    with _display_lock:
+        _current_url = job["url"]
     tokens = _load_tokens()
     result = download_service.download_request(request, tokens=tokens)
     jobs_repo.update_job(
@@ -97,7 +98,8 @@ def _worker() -> None:
         try:
             _run_job(job_id)
         finally:
-            _current_url = None
+            with _display_lock:
+                _current_url = None
             _queue.task_done()
 
 

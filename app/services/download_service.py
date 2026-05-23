@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from urllib.parse import urlparse
 
 from app.config.settings import MULTI_PROVIDER_DOMAINS, YTDLP_DOMAINS, host_matches, normalize_domain
@@ -11,7 +12,7 @@ from app.providers.direct_file import provider as direct_file_provider
 from app.providers.gallery_dl import provider as gallery_provider
 from app.providers.ytdlp import provider as ytdlp_provider
 
-SHORTCUT_PATTERNS: tuple[tuple[re.Pattern[str], callable], ...]
+SHORTCUT_PATTERNS: tuple[tuple[re.Pattern[str], Callable[[str], str]], ...]
 
 
 def _build_shortcuts() -> tuple[tuple[re.Pattern[str], callable], ...]:

@@ -127,13 +127,11 @@ def download(url: str, tokens: dict, max_retries: int = 5, retry_delay: int = 5)
         return DownloadResult(status=JobStatus(status), provider=Provider.GALLERY_DL, domain=domain, download_path=str(root))
 
     env = os.environ.copy()
+    root = provider_root(Provider.GALLERY_DL, domain)
     if domain == "pixiv.net":
         token = get_pixiv_refresh_token(tokens)
         if token:
             env["GALLERYDL_PIXIV_REFRESH_TOKEN"] = token
-        root = provider_root(Provider.GALLERY_DL, domain)
-    else:
-        root = provider_root(Provider.GALLERY_DL, domain)
 
     cookie_candidates = _cookie_candidates(url, domain)
     root = _probe_user_root(url, env, domain, root, cookie_candidates)

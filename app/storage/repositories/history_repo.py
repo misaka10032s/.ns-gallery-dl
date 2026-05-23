@@ -14,13 +14,15 @@ def _domain_for_url(url: str) -> str:
         return "unknown"
 
 
-def list_grouped() -> dict[str, list[dict[str, str]]]:
+def list_grouped(limit: int = 5000) -> dict[str, list[dict[str, str]]]:
     rows = fetch_all(
         """
         SELECT event_date, url, status, domain, provider, source, download_path, meta_json
         FROM history_entries
         ORDER BY event_date DESC, updated_at DESC
-        """
+        LIMIT ?
+        """,
+        (limit,),
     )
     grouped: dict[str, list[dict[str, str]]] = {}
     for row in rows:
@@ -55,6 +57,8 @@ def upsert_entry(
     meta: dict | None = None,
     event_date: str | None = None,
 ) -> None:
+    # history_entries uses UNIQUE(url) — this is a last-write-wins store, not an audit log.
+    # Re-downloading the same URL overwrites the previous record with the latest outcome.
     event_date = event_date or datetime.now().strftime("%Y-%m-%d")
     meta_json = json.dumps(meta or {}, ensure_ascii=False)
     domain = _domain_for_url(url)

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from flask import Flask, jsonify, request
 
-from app.domain.enums import JobSource, Provider
+from app.domain.enums import JobSource, JobStatus, Provider
 from app.domain.jobs import JobRequest
 from app.services import browser_bridge_service
 from app.services import history_service
+
+_VALID_HISTORY_STATUSES = {s.value for s in JobStatus}
 
 
 def register(app: Flask) -> None:
@@ -28,6 +30,8 @@ def register(app: Flask) -> None:
         payload = request.get_json() or {}
         if not all(payload.get(key) for key in ("date", "url", "status")):
             return jsonify({"error": "Missing date, url, or status"}), 400
+        if payload["status"] not in _VALID_HISTORY_STATUSES:
+            return jsonify({"error": f"Invalid status. Must be one of: {sorted(_VALID_HISTORY_STATUSES)}"}), 400
         ok = history_service.update_history_status(payload["date"], payload["url"], payload["status"])
         if ok:
             return jsonify({"message": "Updated"}), 200

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import ipaddress
+import socket
+
 import cloudscraper
 from flask import Flask, jsonify, request
 
@@ -9,6 +12,36 @@ from app.services.download_service import recent_jobs_payload
 from app.services import cookie_service, queue_service
 from app.storage.repositories import history_repo, jobs_repo
 from app.storage.repositories import cookies_repo
+
+
+def _is_safe_url(url: str) -> tuple[bool, str]:
+    """
+    Validate that a URL is safe to proxy.
+    Rejects non-HTTP(S) schemes and private/loopback/link-local hosts to prevent SSRF.
+    """
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False, "Malformed URL."
+    if parsed.scheme not in {"http", "https"}:
+        return False, "Only http and https URLs are allowed."
+    host = parsed.hostname
+    if not host:
+        return False, "Missing host."
+
+    # Resolve hostname to IP and check it is a public address.
+    try:
+        addr_str = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)[0][4][0]
+        addr = ipaddress.ip_address(addr_str)
+    except Exception:
+        return False, f"Could not resolve host: {host}"
+
+    if addr.is_loopback or addr.is_private or addr.is_link_local or addr.is_reserved or addr.is_unspecified:
+        return False, "Requests to private or reserved addresses are not allowed."
+
+    return True, ""
 
 
 def register(app: Flask) -> None:
@@ -22,6 +55,9 @@ def register(app: Flask) -> None:
         url = payload.get("url", "")
         if not url:
             return jsonify({"error": "URL is missing"}), 400
+        safe, reason = _is_safe_url(url)
+        if not safe:
+            return jsonify({"error": reason}), 400
         scraper = cloudscraper.create_scraper()
         try:
             response = scraper.get(url, timeout=10)

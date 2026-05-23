@@ -6,15 +6,24 @@ from pathlib import Path
 from app.config.paths import COOKIE_DIR
 from app.config.settings import normalize_domain
 from app.providers.cookies.registry import scan_cookie_files
+from app.services.path_service import sanitize_component
 from app.storage.repositories import cookies_repo
 
 
 def _cookie_file_name(domain: str) -> str:
-    return f"cookies-{domain.replace('.', '-')}.txt"
+    # sanitize_component strips path-traversal characters (/, \, ..) before use as filename
+    safe = sanitize_component(domain.replace(".", "-"), "unknown")
+    return f"cookies-{safe}.txt"
 
 
 def _cookie_file_path(domain: str) -> Path:
-    return COOKIE_DIR / _cookie_file_name(domain)
+    path = COOKIE_DIR / _cookie_file_name(domain)
+    # Final guard: ensure the resolved path stays within COOKIE_DIR
+    resolved = path.resolve()
+    cookie_dir_resolved = COOKIE_DIR.resolve()
+    if not str(resolved).startswith(str(cookie_dir_resolved)):
+        raise ValueError(f"Invalid domain — path would escape cookie directory: {domain}")
+    return path
 
 
 def _normalize_cookie_text(domain: str, cookie_value: str) -> str:
@@ -70,11 +79,11 @@ def save_cookie(domain: str, cookie_value: str, previous_domain: str | None = No
 
     path = _cookie_file_path(normalized)
     path.write_text(_normalize_cookie_text(normalized, cookie_value), encoding="utf-8")
-    cookies = list_cookies()
-    for item in cookies:
-        if item["domain"] == normalized:
-            return item
-    raise ValueError("Cookie saved, but registry lookup failed.")
+    scan_cookie_files()
+    record = read_cookie(normalized)
+    if not record:
+        raise ValueError("Cookie saved, but registry lookup failed.")
+    return record
 
 
 def delete_cookie(domain: str, missing_ok: bool = False) -> int:

@@ -86,6 +86,8 @@ def init_db() -> None:
 
                 CREATE TABLE IF NOT EXISTS history_entries (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    -- UNIQUE(url): this table stores the *latest* known status per URL,
+                    -- not a full append-only log. Each upsert overwrites the previous record.
                     url TEXT NOT NULL UNIQUE,
                     event_date TEXT NOT NULL,
                     status TEXT NOT NULL,
