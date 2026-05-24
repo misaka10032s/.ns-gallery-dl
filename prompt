@@ -2,3 +2,7 @@
 網域網址範例: `https://www.facebook.com/<xxx>/photos` 找到所有<a> 內包含有 <img src="https://scontent.ftpe14-1.fna.fbcdn.net/v/..."> 的連結，並下載圖片。
 
 因為有些下載url不是指向單一圖片而是一個album或多張圖片的頁面，而該頁面可能會隨時間新增圖片，但是如果甚麼都不處理可能會造成下載大量重複圖片的問題，請告訴我gallery-dl或python可行的解決方案，先不要改動檔案，謝謝!
+
+
+"D:\backup\CSIA\python\.deprecated\hentaiViewer"
+"D:\backup\CSIA\python\.deprecated\bahaImgDownload"
