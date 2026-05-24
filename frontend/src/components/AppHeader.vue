@@ -10,6 +10,7 @@ const store = useHubStore()
 
 const navItems = [
   { to: '/', label: '總覽' },
+  { to: '/gallery', label: '媒體庫' },
   { to: '/history', label: '歷史' },
   { to: '/queue', label: '佇列' },
   { to: '/jobs', label: '工作' },
