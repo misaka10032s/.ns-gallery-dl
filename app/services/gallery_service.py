@@ -151,11 +151,11 @@ def list_files(item_path: str) -> list[dict]:
 
 
 def resolve_file(rel_path: str) -> Path | None:
-    """Resolve rel_path to an absolute Path under DOWNLOAD_DIR.  Returns None if the path escapes the directory."""
+    """Resolve rel_path to an absolute Path under DOWNLOAD_DIR.
+    Returns None if the path escapes the directory or the file does not exist."""
     try:
-        base = DOWNLOAD_DIR.resolve()
         resolved = (DOWNLOAD_DIR / rel_path.lstrip("/")).resolve()
-        if not str(resolved).startswith(str(base)):
+        if not resolved.is_relative_to(DOWNLOAD_DIR.resolve()):
             return None
         return resolved if resolved.is_file() else None
     except Exception:
