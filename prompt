@@ -6,3 +6,5 @@
 
 "D:\backup\CSIA\python\.deprecated\hentaiViewer"
 "D:\backup\CSIA\python\.deprecated\bahaImgDownload"
+
+DISCORD_CHANNEL_IDS 追蹤的訊息不知為啥只會下載n123456這種的了，原本的圖片連結(https://example.com/image/123 or example.com/image/123)被蓋掉不下載了，請幫我找出是哪個commit在搞並修正

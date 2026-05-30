@@ -32,7 +32,7 @@ from app.storage.repositories import jobs_repo
 IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff"}
 URL_PATTERN = re.compile(r"(?:https?://)?(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}[^\s<>\"']*", re.IGNORECASE)
-URL_LIKE_PATTERN = re.compile(r"^(?:[a-z][a-z0-9+.-]*://|(?:www\.)?[a-z0-9.-]+\.[a-z]{2,})(?:[/?#].*)?$", re.IGNORECASE)
+URL_LIKE_PATTERN = re.compile(r"^(?:[a-z][a-z0-9+.-]*://)?(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}(?:[/?#].*)?$", re.IGNORECASE)
 
 _FB_QUEUED = "⏳"
 _FB_DONE = "✅"
