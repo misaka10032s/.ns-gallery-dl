@@ -19,4 +19,4 @@ cli.gemini.cmd
 module/cookies/*
 chromeExtension/static/secret/*
 app/ui/*
-!app/ui/.gitkeep
+!app/ui/.gitkeep*.local.*
