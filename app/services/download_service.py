@@ -93,11 +93,17 @@ def _with_attempt_metadata(result: DownloadResult, attempts: list[dict], forced_
     return result
 
 
+def _tag(provider: Provider) -> str:
+    return f"[{provider.value:<11}]"
+
+
 def download_request(request: JobRequest, tokens: dict) -> DownloadResult:
     attempts: list[dict] = []
     result: DownloadResult | None = None
     providers = provider_candidates(request.url, request.provider)
+    print(f"{_tag(providers[0])} 接收到網址: {request.url}")
     for provider in providers:
+        print(f"{_tag(provider)} 正在下載: {request.url}")
         result = _download_with_provider(provider, request.url, tokens=tokens, metadata=request.metadata)
         attempts.append(
             {
@@ -107,6 +113,7 @@ def download_request(request: JobRequest, tokens: dict) -> DownloadResult:
             }
         )
         if result.status == JobStatus.SUCCESS:
+            print(f"{_tag(result.provider)} 下載成功: {request.url}  →  {result.download_path}")
             return _with_attempt_metadata(result, attempts, request.provider)
     if result is None:
         result = DownloadResult(
@@ -115,6 +122,11 @@ def download_request(request: JobRequest, tokens: dict) -> DownloadResult:
             domain=normalize_domain(urlparse(normalize_url(request.url)).hostname),
             error="No provider candidates available",
         )
+    if result.status == JobStatus.SKIPPED:
+        print(f"{_tag(result.provider)} 已跳過: {request.url}")
+    else:
+        err_suffix = f"  —  {result.error}" if result.error else ""
+        print(f"{_tag(result.provider)} 下載失敗: {request.url}{err_suffix}")
     return _with_attempt_metadata(result, attempts, request.provider)
 
 
