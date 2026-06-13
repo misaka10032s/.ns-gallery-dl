@@ -49,7 +49,7 @@ def _simulate(url: str, env: dict[str, str], cookie_path: str | None = None) -> 
     return result.returncode, count
 
 
-def _gallery_download(url: str, env: dict[str, str], download_root: Path, cookie_path: str | None = None) -> str:
+def _gallery_download(url: str, env: dict[str, str], download_root: Path, cookie_path: str | None = None) -> tuple[str, int, int]:
     command = ["gallery-dl", url, "-D", str(download_root), *_cookies_args(cookie_path)]
     process = subprocess.Popen(
         command,
@@ -60,10 +60,23 @@ def _gallery_download(url: str, env: dict[str, str], download_root: Path, cookie
         encoding="utf-8",
         errors="replace",
     )
+    downloaded = 0
+    skipped = 0
     for line in iter(process.stdout.readline, ""):
+        text = line.rstrip("\r\n")
+        # why: gallery-dl 對已存在檔案輸出 '# <path>'，新檔輸出純路徑、log 行以 '[' 開頭
+        if text.startswith("# "):
+            skipped += 1
+            sys.stdout.write(f"[略過] {text[2:]}\n")
+            continue
+        if text and not text.startswith("[") and not text.upper().startswith("ERROR"):
+            downloaded += 1
         sys.stdout.write(line)
     process.wait()
-    return "success" if process.returncode == 0 else "failed"
+    if downloaded or skipped:
+        sys.stdout.write(f"[gallery-dl ] 本次：下載 {downloaded} 張、略過 {skipped} 張\n")
+    status = "success" if process.returncode == 0 else "failed"
+    return status, downloaded, skipped
 
 
 def _probe_pixiv_user_root(url: str, root: Path) -> Path:
@@ -155,9 +168,17 @@ def download(url: str, tokens: dict, max_retries: int = 5, retry_delay: int = 5)
                 saw_zero_results = True
                 continue
             saw_zero_results = False
-            status = _gallery_download(url, env, root, cookie_path)
+            status, downloaded, skipped = _gallery_download(url, env, root, cookie_path)
             if status == "success":
-                return DownloadResult(status=JobStatus.SUCCESS, provider=Provider.GALLERY_DL, domain=domain, download_path=str(root))
+                # why: 整個 user 連結全部已存在 → 視為略過而非下載成功
+                job_status = JobStatus.SKIPPED if downloaded == 0 and skipped > 0 else JobStatus.SUCCESS
+                return DownloadResult(
+                    status=job_status,
+                    provider=Provider.GALLERY_DL,
+                    domain=domain,
+                    download_path=str(root),
+                    metadata={"downloaded": downloaded, "skipped": skipped},
+                )
             attempt_failed = True
         if domain == "pixiv.net" and attempt_failed:
             token = get_pixiv_refresh_token(tokens)

@@ -97,6 +97,13 @@ def _tag(provider: Provider) -> str:
     return f"[{provider.value:<11}]"
 
 
+def _counts_suffix(result: DownloadResult) -> str:
+    meta = result.metadata or {}
+    if "downloaded" not in meta and "skipped" not in meta:
+        return ""
+    return f"  (下載 {meta.get('downloaded', 0)} 張、略過 {meta.get('skipped', 0)} 張)"
+
+
 def download_request(request: JobRequest, tokens: dict) -> DownloadResult:
     attempts: list[dict] = []
     result: DownloadResult | None = None
@@ -112,8 +119,12 @@ def download_request(request: JobRequest, tokens: dict) -> DownloadResult:
                 "error": result.error,
             }
         )
-        if result.status == JobStatus.SUCCESS:
-            print(f"{_tag(result.provider)} 下載成功: {request.url}  →  {result.download_path}")
+        # why: SKIPPED 代表此 provider 已有全部檔案，與 SUCCESS 同樣是終態，不再試下一個 provider
+        if result.status in (JobStatus.SUCCESS, JobStatus.SKIPPED):
+            if result.status == JobStatus.SUCCESS:
+                print(f"{_tag(result.provider)} 下載成功: {request.url}  →  {result.download_path}{_counts_suffix(result)}")
+            else:
+                print(f"{_tag(result.provider)} 已跳過: {request.url}{_counts_suffix(result)}")
             return _with_attempt_metadata(result, attempts, request.provider)
     if result is None:
         result = DownloadResult(
@@ -122,11 +133,8 @@ def download_request(request: JobRequest, tokens: dict) -> DownloadResult:
             domain=normalize_domain(urlparse(normalize_url(request.url)).hostname),
             error="No provider candidates available",
         )
-    if result.status == JobStatus.SKIPPED:
-        print(f"{_tag(result.provider)} 已跳過: {request.url}")
-    else:
-        err_suffix = f"  —  {result.error}" if result.error else ""
-        print(f"{_tag(result.provider)} 下載失敗: {request.url}{err_suffix}")
+    err_suffix = f"  —  {result.error}" if result.error else ""
+    print(f"{_tag(result.provider)} 下載失敗: {request.url}{err_suffix}")
     return _with_attempt_metadata(result, attempts, request.provider)
 
 
