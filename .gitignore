@@ -19,4 +19,26 @@ cli.gemini.cmd
 module/cookies/*
 chromeExtension/static/secret/*
 app/ui/*
-!app/ui/.gitkeep*.local.*
+!app/ui/.gitkeep
+
+# === Claude Code / graphify ===
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/worktrees/
+
+# Generated knowledge graph
+graphify-out/
+
+# Agent / browser-test artifacts — never tracked
+final_runs/
+screenshots/
+**/screenshots/
+*.screenshot.png
+.playwright-mcp/
+.impeccable/
+impeccable-out/
+.remember/
+
+# Catch-all for *.local.* / *.local config/env overrides
+*.local.*
+*.local
