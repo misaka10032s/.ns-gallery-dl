@@ -14,3 +14,4 @@ def register(app: Flask) -> None:
     app.add_url_rule("/queue", view_func=_spa_entry, methods=["GET"])
     app.add_url_rule("/jobs", view_func=_spa_entry, methods=["GET"])
     app.add_url_rule("/cookies", view_func=_spa_entry, methods=["GET"])
+    app.add_url_rule("/gallery", view_func=_spa_entry, methods=["GET"])

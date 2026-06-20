@@ -19,6 +19,8 @@ def _connect() -> sqlite3.Connection:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    # WAL 模式允許讀寫並發，避免多執行緒下的 "database is locked" 錯誤
+    conn.execute("PRAGMA journal_mode=WAL")
     return conn
 
 

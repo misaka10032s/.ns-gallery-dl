@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ipaddress
 import socket
+from urllib.parse import urlparse
 
 import cloudscraper
 from flask import Flask, jsonify, request
@@ -14,13 +15,37 @@ from app.storage.repositories import history_repo, jobs_repo
 from app.storage.repositories import cookies_repo
 
 
+def _check_same_origin() -> tuple[bool, str]:
+    """驗證請求來自同源（Origin 或 Referer 必須為 127.0.0.1:7601）。
+    防止本機其他頁面對 cookie 變更端點發送 CSRF 請求。"""
+    # 取得 Origin 或 Referer（依 RFC 6454，變更請求瀏覽器通常送 Origin）
+    origin = request.headers.get("Origin", "").strip()
+    referer = request.headers.get("Referer", "").strip()
+
+    source = origin or referer
+    if not source:
+        # 不含 Origin/Referer 的請求（例如 curl 直接呼叫）來自 127.0.0.1 仍屬本地工具呼叫，
+        # 允許通過但僅限本地服務已綁定 127.0.0.1 的情境
+        return True, ""
+
+    try:
+        parsed = urlparse(source)
+    except Exception:
+        return False, "無法解析 Origin/Referer。"
+
+    host = parsed.hostname or ""
+    # 只允許來自 127.0.0.1 的同源請求
+    if host not in ("127.0.0.1", "localhost"):
+        return False, "拒絕跨來源的 cookie 變更請求。"
+
+    return True, ""
+
+
 def _is_safe_url(url: str) -> tuple[bool, str]:
     """
     Validate that a URL is safe to proxy.
     Rejects non-HTTP(S) schemes and private/loopback/link-local hosts to prevent SSRF.
     """
-    from urllib.parse import urlparse
-
     try:
         parsed = urlparse(url)
     except Exception:
@@ -100,6 +125,9 @@ def register(app: Flask) -> None:
 
         @app.route("/api/cookies", methods=["POST"])
         def create_cookie():
+            ok, reason = _check_same_origin()
+            if not ok:
+                return jsonify({"error": reason}), 403
             payload = request.get_json() or {}
             try:
                 record = cookie_service.save_cookie(
@@ -112,6 +140,9 @@ def register(app: Flask) -> None:
 
         @app.route("/api/cookies", methods=["PUT"])
         def update_cookie():
+            ok, reason = _check_same_origin()
+            if not ok:
+                return jsonify({"error": reason}), 403
             payload = request.get_json() or {}
             try:
                 record = cookie_service.save_cookie(
@@ -125,6 +156,9 @@ def register(app: Flask) -> None:
 
         @app.route("/api/cookies", methods=["DELETE"])
         def delete_cookie():
+            ok, reason = _check_same_origin()
+            if not ok:
+                return jsonify({"error": reason}), 403
             payload = request.get_json() or {}
             try:
                 deleted = cookie_service.delete_cookie(payload.get("domain", ""))

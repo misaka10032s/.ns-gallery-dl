@@ -31,6 +31,18 @@
 - `/queue` 顯示目前下載中、待處理分布與 queue 清單
 - `/jobs` 提供工作篩選、錯誤檢視與 retry
 - `/cookies` 提供 cookie registry、新增 / 編輯 / 刪除管理
+- `/gallery` 提供本機媒體瀏覽器，可瀏覽 `download/` 目錄下的圖片與影片
+
+### 5. 媒體瀏覽器（Media Viewer）
+
+- **`/gallery`** — 瀏覽下載目錄中的全部媒體，分類顯示（discord / pixiv / ytdlp 等）
+- **`GalleryView.vue`** 元件提供：縮圖格檢視、分類切換、資料夾展開、圖片燈箱
+- 後端 API：
+  - `GET /api/gallery` — 取得頂層分類列表
+  - `GET /api/gallery/items?category=<name>` — 取得分類下的所有媒體項目（子目錄或單一檔案）
+  - `GET /api/gallery/files?path=<rel>` — 取得項目下的所有檔案清單
+  - `GET /api/gallery/serve?p=<rel>` — 安全提供媒體檔案（支援 Range 分段請求，適合影片串流）
+- 路徑安全：所有檔案請求均透過 `resolve_file` 驗證，防止 path traversal 逸出 `download/` 目錄
 
 ### 3. Discord bot
 
@@ -212,6 +224,7 @@ chmod +x dl.sh
 - `http://127.0.0.1:7601/queue`
 - `http://127.0.0.1:7601/jobs`
 - `http://127.0.0.1:7601/cookies`
+- `http://127.0.0.1:7601/gallery`（媒體瀏覽器，可直接瀏覽 `download/` 目錄的圖片與影片）
 
 前端 source 在 `frontend/`，常用指令：
 
