@@ -87,6 +87,10 @@ Key fields: `DISCORD_BOT_TOKEN`, `DISCORD_CHANNEL_IDS`, `BOT_DOMAIN_ALLOWLIST`,
 ### Site-specific logic
 - Preserve nhentai + wnacg specialized download logic — do not generalise away
 
+## Gotchas
+- **Web UI:** navigate ONLY via the left menu — direct URL navigation fails to render.
+- **Data / schema:** verify data and schema by querying `data/app.db` directly — never infer schema from code.
+
 ## graphify
 Before answering architecture/code questions: check `graphify-out/GRAPH_REPORT.md` for core
 nodes; if `graphify-out/wiki/index.md` exists, browse the wiki before reading source files.
