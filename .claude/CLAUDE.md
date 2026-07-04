@@ -15,7 +15,9 @@ Chrome extension, and centralised cookie management. Backend is Python/Flask; fr
 - Target missing or contradicting the task → STOP and ask; never scaffold around it.
 
 ## Context index
-_(none yet — add files here per @PM taxonomy)_
+| File (`.claude/context/`) | Read when |
+|---|---|
+| `selection-mode-v2-spec.md` | before touching the extension selection engine (`chromeExtension/static/module/selector-*.js`) — approved design, binding decisions |
 
 ## Stack
 - Backend: Python 3.11 + Flask (API + serves frontend build); SQLite at `data/app.db`
