@@ -54,10 +54,11 @@
         "https://www.pixiv.net/artworks/*"
       ],
       "js": [
+        "static/module/selector.js",
         "pixiv/content.js"
       ],
       "css": [
-        "pixiv/style.css"
+        "static/module/selector.css"
       ]
     },
     {
@@ -66,10 +67,11 @@
         "https://nhentai.net/g/*"
       ],
       "js": [
+        "static/module/selector.js",
         "nhentai/content.js"
       ],
       "css": [
-        "nhentai/style.css"
+        "static/module/selector.css"
       ]
     },
     {
@@ -78,10 +80,11 @@
         "https://www.wnacg.com/*"
       ],
       "js": [
+        "static/module/selector.js",
         "wnacg/content.js"
       ],
       "css": [
-        "wnacg/style.css"
+        "static/module/selector.css"
       ]
     },
     {
@@ -90,10 +93,11 @@
         "https://yande.re/post?tags=*"
       ],
       "js": [
+        "static/module/selector.js",
         "yande.re/content.js"
       ],
       "css": [
-        "yande.re/style.css"
+        "static/module/selector.css"
       ]
     },
     {
@@ -101,10 +105,11 @@
         "https://www.facebook.com/*"
       ],
       "js": [
+        "static/module/selector.js",
         "facebook/content.js"
       ],
       "css": [
-        "facebook/style.css"
+        "static/module/selector.css"
       ]
     }
   ]
