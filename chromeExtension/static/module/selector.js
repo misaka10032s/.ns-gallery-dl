@@ -160,7 +160,11 @@
                 alert('尚未選取任何項目。');
                 return;
             }
-            chrome.runtime.sendMessage({ type: 'downloadUrls', urls: urls });
+            if (_config && typeof _config.submit === 'function') {
+                _config.submit(urls);
+            } else {
+                chrome.runtime.sendMessage({ type: 'downloadUrls', urls: urls });
+            }
         });
 
         _toolbar.querySelector('#ns-sel-exit').addEventListener('click', function () {

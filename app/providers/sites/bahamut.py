@@ -137,13 +137,16 @@ def _page_url(base_url: str, page: int) -> str:
     return f"{base_url}{sep}page={page}"
 
 
-def download_bahamut(url: str, output_root: Path) -> str:
+def download_bahamut(url: str, output_root: Path, selected_urls: list[str] | None = None) -> str:
     """
     Download images from a Bahamut forum article.
 
-    Supports:
-    - Co.php single-post URLs — folder named ``baha_co_{sn}_{title}``
-    - C.php thread URLs — multi-page, folder named ``baha_{snA}_{title}``
+    Modes:
+    - selected_urls provided (selected-images mode): fetch page only for title/folder name,
+      then download exactly the given URLs via _download_images. Works for both C.php and
+      Co.php. Folder: ``baha_sel_{snA or sn}_{title}``.
+    - Co.php single-post URLs (full mode) — folder named ``baha_co_{sn}_{title}``
+    - C.php thread URLs (full mode) — multi-page, folder named ``baha_{snA}_{title}``
 
     Returns 'success' or 'failed'.
     """
@@ -157,6 +160,19 @@ def download_bahamut(url: str, output_root: Path) -> str:
         return "failed"
 
     soup = BeautifulSoup(resp.text, "lxml")
+
+    # ── Selected-images mode ───────────────────────────────────────────────
+    if selected_urls is not None:
+        title_el = soup.find("h1", class_="c-post__header__title")
+        title = _remove_illegal_chars(title_el.get_text(strip=True)) if title_el else "unknown"
+        # Prefer snA (C.php thread) over sn (Co.php post) for the folder id
+        sn_match = re.search(r"[?&]snA=(\d+)", url) or re.search(r"[?&]sn=(\d+)", url)
+        sn = sn_match.group(1) if sn_match else "0"
+        download_dir = output_root / f"baha_sel_{sn}_{title}"
+        success = _download_images(
+            scraper, list(selected_urls), download_dir, desc=f"Bahamut Sel: {title[:40]}"
+        )
+        return "success" if success else "failed"
 
     # ── Co.php single-post mode ────────────────────────────────────────────
     if _is_co_php(url):

@@ -111,6 +111,19 @@
       "css": [
         "static/module/selector.css"
       ]
+    },
+    {
+      "matches": [
+        "https://forum.gamer.com.tw/C.php*",
+        "https://forum.gamer.com.tw/Co.php*"
+      ],
+      "js": [
+        "static/module/selector.js",
+        "bahamut/content.js"
+      ],
+      "css": [
+        "static/module/selector.css"
+      ]
     }
   ]
 }

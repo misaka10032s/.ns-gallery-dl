@@ -28,7 +28,9 @@ def register(app: Flask) -> None:
             source = JobSource.API
         provider_hint = payload.get("providerHint")
         provider = Provider(provider_hint) if provider_hint in {member.value for member in Provider} else None
-        count = browser_bridge_service.submit_urls(links, source=source, provider=provider)
+        raw_meta = payload.get("meta")
+        meta = raw_meta if isinstance(raw_meta, dict) else None
+        count = browser_bridge_service.submit_urls(links, source=source, provider=provider, metadata=meta)
         return jsonify({"message": f"Queued {count} links for download."}), 202
 
     @app.route("/download", methods=["POST"])

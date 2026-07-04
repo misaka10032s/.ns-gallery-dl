@@ -128,7 +128,7 @@ def _probe_user_root(url: str, env: dict[str, str], domain: str, root: Path, coo
     return root
 
 
-def download(url: str, tokens: dict, max_retries: int = 5, retry_delay: int = 5) -> DownloadResult:
+def download(url: str, tokens: dict, max_retries: int = 5, retry_delay: int = 5, metadata: dict | None = None) -> DownloadResult:
     domain = normalize_domain(urlparse(url).hostname)
     if domain in {"nhentai.net"}:
         root = provider_root(Provider.GALLERY_DL, domain)
@@ -142,7 +142,8 @@ def download(url: str, tokens: dict, max_retries: int = 5, retry_delay: int = 5)
 
     if domain in {"forum.gamer.com.tw", "gamer.com.tw"}:
         root = provider_root(Provider.GALLERY_DL, domain)
-        status = download_bahamut(url, root)
+        selected_urls = (metadata or {}).get("selected_urls") or None
+        status = download_bahamut(url, root, selected_urls=selected_urls)
         return DownloadResult(status=JobStatus(status), provider=Provider.GALLERY_DL, domain=domain, download_path=str(root))
 
     env = os.environ.copy()

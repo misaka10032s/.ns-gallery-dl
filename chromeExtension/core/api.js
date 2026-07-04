@@ -41,6 +41,34 @@ export async function submitLinks(urls, { sender, providerHint = null, source = 
   }
 }
 
+export async function submitImageSelection(pageUrl, selectedUrls, { sender } = {}) {
+  try {
+    const response = await fetch(`${API_BASE}/api/jobs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        links: [pageUrl],
+        source: 'extension',
+        meta: { selected_urls: selectedUrls },
+      }),
+    });
+    if (!response.ok) {
+      throw new Error('Local server responded with an error.');
+    }
+    const result = await response.json();
+    notify({
+      title: '已傳送選取圖片至 NS Media Hub',
+      message: result.message || `${selectedUrls.length} 張圖片已加入佇列。`,
+      iconUrl: sender?.tab?.favIconUrl || 'pixiv/favicon.ico',
+    });
+    return true;
+  } catch (error) {
+    console.warn('Could not connect to local server; falling back to clipboard.', error);
+    await copyFallback(selectedUrls, sender);
+    return false;
+  }
+}
+
 export async function fetchDashboardSummary() {
   const response = await fetch(`${API_BASE}/api/dashboard`);
   if (!response.ok) {

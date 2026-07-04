@@ -79,7 +79,7 @@ def _download_with_provider(provider: Provider, url: str, tokens: dict, metadata
         return ytdlp_provider.download(url)
     if provider == Provider.DIRECT_FILE:
         return direct_file_provider.download(url, metadata=metadata)
-    return gallery_provider.download(url, tokens=tokens)
+    return gallery_provider.download(url, tokens=tokens, metadata=metadata)
 
 
 def _with_attempt_metadata(result: DownloadResult, attempts: list[dict], forced_provider: Provider | None) -> DownloadResult:
