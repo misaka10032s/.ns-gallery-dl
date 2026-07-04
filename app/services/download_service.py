@@ -82,8 +82,17 @@ def _download_with_provider(provider: Provider, url: str, tokens: dict, metadata
     return gallery_provider.download(url, tokens=tokens, metadata=metadata)
 
 
-def _with_attempt_metadata(result: DownloadResult, attempts: list[dict], forced_provider: Provider | None) -> DownloadResult:
-    metadata = dict(result.metadata or {})
+def _with_attempt_metadata(
+    result: DownloadResult,
+    attempts: list[dict],
+    forced_provider: Provider | None,
+    original_meta: dict | None = None,
+) -> DownloadResult:
+    # Start from original request meta so keys like selected_urls survive in the
+    # stored job record.  Result-level keys (e.g. downloaded/skipped) overwrite
+    # originals; attempt tracking keys are then set unconditionally.
+    metadata = dict(original_meta or {})
+    metadata.update(result.metadata or {})
     metadata["attempted_providers"] = [attempt["provider"] for attempt in attempts]
     metadata["provider_mode"] = "forced" if forced_provider else "auto"
     metadata["selected_provider"] = result.provider.value
@@ -125,7 +134,7 @@ def download_request(request: JobRequest, tokens: dict) -> DownloadResult:
                 print(f"{_tag(result.provider)} 下載成功: {request.url}  →  {result.download_path}{_counts_suffix(result)}")
             else:
                 print(f"{_tag(result.provider)} 已跳過: {request.url}{_counts_suffix(result)}")
-            return _with_attempt_metadata(result, attempts, request.provider)
+            return _with_attempt_metadata(result, attempts, request.provider, request.metadata)
     if result is None:
         result = DownloadResult(
             status=JobStatus.FAILED,
@@ -135,7 +144,7 @@ def download_request(request: JobRequest, tokens: dict) -> DownloadResult:
         )
     err_suffix = f"  —  {result.error}" if result.error else ""
     print(f"{_tag(result.provider)} 下載失敗: {request.url}{err_suffix}")
-    return _with_attempt_metadata(result, attempts, request.provider)
+    return _with_attempt_metadata(result, attempts, request.provider, request.metadata)
 
 
 def history_payload(url: str, source: JobSource, result: DownloadResult) -> dict:
