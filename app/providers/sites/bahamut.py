@@ -99,6 +99,23 @@ def _extract_images_from_article(article_div) -> list[str]:
     return urls
 
 
+def _is_co_php(url: str) -> bool:
+    """Return True if the URL is a Co.php single-post URL.
+
+    Detects by path containing Co.php, or by query having sn= without snA=.
+    Pure function — no I/O — so it is unit-testable in isolation.
+
+    Examples:
+        https://forum.gamer.com.tw/Co.php?bsn=74934&sn=83404  → True
+        https://forum.gamer.com.tw/C.php?bsn=74934&snA=83404  → False
+    """
+    if re.search(r"/Co\.php", url):
+        return True
+    has_sn = bool(re.search(r"[?&]sn=", url))
+    has_snA = bool(re.search(r"[?&]snA=", url))
+    return has_sn and not has_snA
+
+
 def _get_total_pages(soup: BeautifulSoup) -> int:
     """Return total number of pages from pagination element. Returns 1 if not found."""
     pagination = soup.find("p", class_="BH-pagebtnA")
@@ -125,9 +142,8 @@ def download_bahamut(url: str, output_root: Path) -> str:
     Download images from a Bahamut forum article.
 
     Supports:
-    - Single-page articles
-    - Multi-page threads (all pages downloaded)
-    - First post only (OP image download)
+    - Co.php single-post URLs — folder named ``baha_co_{sn}_{title}``
+    - C.php thread URLs — multi-page, folder named ``baha_{snA}_{title}``
 
     Returns 'success' or 'failed'.
     """
@@ -142,7 +158,36 @@ def download_bahamut(url: str, output_root: Path) -> str:
 
     soup = BeautifulSoup(resp.text, "lxml")
 
-    # Must have pagination marker to confirm this is a valid article page
+    # ── Co.php single-post mode ────────────────────────────────────────────
+    if _is_co_php(url):
+        title_el = soup.find("h1", class_="c-post__header__title")
+        if not title_el:
+            return "failed"
+        title = _remove_illegal_chars(title_el.get_text(strip=True))
+
+        sn_match = re.search(r"[?&]sn=(\d+)", url)
+        sn = sn_match.group(1) if sn_match else "0"
+        download_dir = output_root / f"baha_co_{sn}_{title}"
+
+        # Take ONLY the first c-article__content div (post body).
+        # Later divs belong to the comment section and carry thumbnail URLs
+        # (e.g. ?w=300&h=300&fit=o) that must NOT be downloaded.
+        articles = soup.find_all("div", class_="c-article__content")
+        if not articles:
+            return "failed"
+        image_urls = _extract_images_from_article(articles[0])
+
+        if not image_urls:
+            return "failed"
+
+        success = _download_images(
+            scraper, image_urls, download_dir, desc=f"Bahamut Co: {title[:40]}"
+        )
+        return "success" if success else "failed"
+
+    # ── C.php thread mode (original behavior, unchanged) ──────────────────
+
+    # Must have pagination marker to confirm this is a valid thread page
     if not soup.find("p", class_="BH-pagebtnA"):
         return "failed"
 
