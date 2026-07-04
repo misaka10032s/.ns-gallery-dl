@@ -58,8 +58,7 @@
         "pixiv/content.js"
       ],
       "css": [
-        "static/module/selector.css",
-        "pixiv/style.css"
+        "static/module/selector.css"
       ]
     },
     {
@@ -72,8 +71,7 @@
         "nhentai/content.js"
       ],
       "css": [
-        "static/module/selector.css",
-        "nhentai/style.css"
+        "static/module/selector.css"
       ]
     },
     {
@@ -86,8 +84,7 @@
         "wnacg/content.js"
       ],
       "css": [
-        "static/module/selector.css",
-        "wnacg/style.css"
+        "static/module/selector.css"
       ]
     },
     {
@@ -100,8 +97,7 @@
         "yande.re/content.js"
       ],
       "css": [
-        "static/module/selector.css",
-        "yande.re/style.css"
+        "static/module/selector.css"
       ]
     },
     {
@@ -113,8 +109,7 @@
         "facebook/content.js"
       ],
       "css": [
-        "static/module/selector.css",
-        "facebook/style.css"
+        "static/module/selector.css"
       ]
     }
   ]

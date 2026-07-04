@@ -88,12 +88,19 @@
         e.stopPropagation();
 
         if (e.shiftKey && _lastIndex >= 0) {
-            var lo = Math.min(_lastIndex, found);
-            var hi = Math.max(_lastIndex, found);
-            for (var j = lo; j <= hi; j++) {
-                _selected.add(items[j].url);
+            if (_lastIndex >= items.length) {
+                // anchor item no longer exists (DOM mutation shrunk list) — treat as plain toggle
+                var url = items[found].url;
+                if (_selected.has(url)) { _selected.delete(url); } else { _selected.add(url); }
+                _lastIndex = found;
+            } else {
+                var lo = Math.min(_lastIndex, found);
+                var hi = Math.min(Math.max(_lastIndex, found), items.length - 1);
+                for (var j = lo; j <= hi; j++) {
+                    _selected.add(items[j].url);
+                }
+                // lastIndex stays as the anchor; do not update it on shift-click
             }
-            // lastIndex stays as the anchor; do not update it on shift-click
         } else {
             var url = items[found].url;
             if (_selected.has(url)) {
