@@ -1,0 +1,173 @@
+<!--
+  NS Media Hub — Overview Overlay Layout Verification Harness
+  ===========================================================
+  PURPOSE
+    Standalone browser test for the Selection Mode v2 overview overlay (Alt+G).
+    Opens the file, auto-enters selection mode, and immediately shows the
+    120-tile overview grid so you can verify the layout without a live server,
+    without a real extension, and without any network access.
+
+  HOW TO OPEN
+    In Chrome: File → Open File… → select this file  (Ctrl+O)
+    URL bar shortcut: drag this file onto an open Chrome tab, or type the path.
+    No build step, no local server needed.
+
+  WHAT CORRECT LOOKS LIKE
+    ✓ A dark fullscreen overlay appears immediately on load.
+    ✓ A header bar at the top with buttons (全選, 反選, 清除, 下載所選, ✕ 關閉)
+      and a count "已選 0 項 / 共 120 張".
+    ✓ A SCROLLABLE grid of 120 square tiles below the header.
+      – Tiles are ~180 px, arranged in auto-fill columns.
+      – Each tile shows a numbered coloured square (rainbow spectrum 1–120).
+      – A vertical scrollbar is visible on the right side of the grid.
+      – Scrolling the grid reveals all 120 tiles (roughly 20 rows × 6 cols
+        at 1200 px viewport width).
+    ✓ Clicking a tile selects it (blue border + check badge).
+    ✓ 全選 selects all tiles; 清除 deselects all.
+    ✓ Esc or ✕ 關閉 dismisses the overlay.
+
+  WHAT WAS BROKEN (before the fix)
+    Without `min-height: 0` on .ns-ovr-grid, the grid grew to ~3900 px
+    (content height for 120 tiles) instead of being constrained to the
+    available viewport height.  overflow-y: auto never fired (no internal
+    overflow).  The grid bled below the viewport silently; most tiles were
+    invisible, with only the bottom-most visible rows rendering correctly.
+
+  VISUAL VERIFICATION: PENDING (human opens this file in Chrome)
+-->
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NS Overview Harness — 120 tiles</title>
+
+  <!-- Load the real extension stylesheet -->
+  <link rel="stylesheet" href="../static/module/selector.css">
+
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      background: #f5f5f5;
+      color: #333;
+    }
+    #page-info {
+      padding: 16px 20px;
+      background: #1a1a2e;
+      color: #ccc;
+      font-size: 13px;
+      border-bottom: 2px solid #e91e63;
+    }
+    #page-info h2 { margin: 0 0 6px; font-size: 15px; color: #fff; }
+    #page-info p  { margin: 2px 0; }
+    /* Simulated page image gallery — visible behind / before the overlay */
+    #fake-gallery {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 16px;
+    }
+    #fake-gallery img {
+      width: 80px;
+      height: 80px;
+      object-fit: cover;
+      border-radius: 4px;
+      border: 2px solid transparent;
+    }
+  </style>
+</head>
+<body>
+
+<div id="page-info">
+  <h2>NS Overview Harness — layout verification</h2>
+  <p>Auto-opens the overview with 120 mock tiles on page load.</p>
+  <p>Expected: scrollable grid, ~6 columns, all 120 numbered tiles reachable.</p>
+  <p>Press <kbd>Alt+S</kbd> to toggle selection mode · <kbd>Alt+G</kbd> to toggle overlay · <kbd>Esc</kbd> to close overlay.</p>
+</div>
+
+<!-- Simulated page images (what the fake adapter returns) -->
+<div id="fake-gallery"></div>
+
+<!-- ── chrome.runtime stub (must be before module scripts) ─────────────────── -->
+<script>
+  window.chrome = {
+    runtime: {
+      sendMessage: function (msg, callback) {
+        console.log('[harness stub] sendMessage:', msg);
+        // Simulate successful download submission
+        if (typeof callback === 'function') {
+          setTimeout(function () { callback({ success: true }); }, 200);
+        }
+      },
+      lastError: null
+    }
+  };
+</script>
+
+<!-- ── Load the real selection-engine modules ─────────────────────────────── -->
+<script src="../static/module/selector-catalog.js"></script>
+<script src="../static/module/selector-core.js"></script>
+<script src="../static/module/selector-overview.js"></script>
+
+<!-- ── Harness: fake adapter + auto-open ──────────────────────────────────── -->
+<script>
+(function () {
+  'use strict';
+
+  // ── Generate 120 inline SVG data-URI thumbnails ─────────────────────────
+  // Each tile has a unique hue (rainbow spread) and a visible number label.
+  function makeSvgDataUri(index, total) {
+    var hue = Math.round((index / total) * 360);
+    var label = String(index + 1);
+    var svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">' +
+        '<rect width="200" height="200" fill="hsl(' + hue + ',65%,50%)"/>' +
+        '<text x="100" y="120" font-size="48" font-family="sans-serif" ' +
+             'fill="rgba(255,255,255,0.9)" text-anchor="middle" ' +
+             'dominant-baseline="middle">' + label + '</text>' +
+      '</svg>';
+    // btoa is available in all modern browsers
+    return 'data:image/svg+xml;base64,' + btoa(svg);
+  }
+
+  var TOTAL = 120;
+  var gallery = document.getElementById('fake-gallery');
+  var fakeItems = [];
+
+  for (var i = 0; i < TOTAL; i++) {
+    var img = document.createElement('img');
+    img.src = makeSvgDataUri(i, TOTAL);
+    img.alt = 'Image ' + (i + 1);
+    img.title = 'Fake image #' + (i + 1);
+    gallery.appendChild(img);
+    fakeItems.push({ container: img, url: img.src });
+  }
+
+  // ── Register fake adapter ─────────────────────────────────────────────
+  NsSelector.register({
+    getItems: function () { return fakeItems; }
+  });
+
+  // ── Auto-enter selection mode and open the overview ────────────────────
+  // Dispatch the same keyboard events the real extension listens to.
+  function fire(key) {
+    document.dispatchEvent(new KeyboardEvent('keydown', {
+      key:     key,
+      altKey:  true,
+      bubbles: true,
+      cancelable: true
+    }));
+  }
+
+  // Give the DOM a tick to settle, then enter mode (Alt+S) and open overlay (Alt+G).
+  // Two separate ticks so NsCatalog.start() + initial scan complete before open.
+  setTimeout(function () { fire('s'); }, 50);
+  setTimeout(function () { fire('g'); }, 150);
+
+  console.log('[harness] 120 fake items registered; auto-opening overlay in 150 ms.');
+})();
+</script>
+
+</body>
+</html>

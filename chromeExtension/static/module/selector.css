@@ -20,14 +20,15 @@
 }
 
 /* ── sticky check badge for oversized images (spec §E) ──────────────────── */
-/* Badge is injected as a sibling/child by JavaScript when needed,
-   OR we use a pseudo approach via ::before on .ns-selected.
-   Using ::before (top-right corner) that is sticky within the visible area. */
+/* Badge is rendered via ::before on .ns-selected.
+   position:sticky keeps it visible as the user scrolls past a tall image.
+   Anchored to the top-right: float is intentionally omitted (ignored on
+   non-static elements and causes BFC side-effects in some browsers). */
 .ns-selected::before {
     content: '✓';
     position: sticky;     /* sticks within the element's scrollable container */
     top: 8px;
-    left: calc(100% - 36px); /* push to right side */
+    left: calc(100% - 36px); /* sticky right-edge threshold */
     display: inline-block;
     width: 28px;
     height: 28px;
@@ -41,8 +42,6 @@
     z-index: 501;
     pointer-events: none;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
-    float: right;         /* fallback positioning for non-scrollable containers */
-    margin: 6px 6px 0 0;
 }
 
 /* ── floating toolbar ───────────────────────────────────────────────────── */
@@ -143,6 +142,7 @@
     flex-direction: column;
     font-family: sans-serif;
     color: #fff;
+    overflow: hidden; /* contain children — prevent grid bleed outside overlay */
 }
 
 /* header bar */
@@ -213,6 +213,11 @@
 /* scrollable tile grid */
 .ns-ovr-grid {
     flex: 1;
+    min-height: 0;       /* CRITICAL: allow flex child to shrink below content height.
+                            Without this, min-height:auto = full tile-stack height (~3900px
+                            for 120 tiles), preventing flex from constraining the grid to
+                            the available viewport space. overflow-y:auto then never fires
+                            because the grid IS as tall as its content. */
     overflow-y: auto;
     padding: 16px;
     display: grid;
