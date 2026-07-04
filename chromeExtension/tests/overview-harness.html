@@ -26,12 +26,23 @@
     ✓ 全選 selects all tiles; 清除 deselects all.
     ✓ Esc or ✕ 關閉 dismisses the overlay.
 
-  WHAT WAS BROKEN (before the fix)
-    Without `min-height: 0` on .ns-ovr-grid, the grid grew to ~3900 px
-    (content height for 120 tiles) instead of being constrained to the
-    available viewport height.  overflow-y: auto never fired (no internal
-    overflow).  The grid bled below the viewport silently; most tiles were
-    invisible, with only the bottom-most visible rows rendering correctly.
+  WHAT WAS BROKEN (two-stage fix history)
+    Stage 1 — flex containment (fixed in prior commit):
+      Without `min-height: 0` on .ns-ovr-grid the grid grew to ~3900 px
+      (content height for 120 tiles) instead of being constrained to the
+      available viewport height.  overflow-y: auto never fired.  The grid
+      bled below the viewport silently.
+
+    Stage 2 — grid row track sizing (this fix):
+      Even with min-height: 0, relying on `aspect-ratio: 1/1` on the tile
+      item does NOT feed back into `grid-auto-rows: auto` in Chrome.  Each
+      row track collapses to the badge content height (~24-30 px) while the
+      tile itself renders at its aspect-ratio-derived size (~207 px square).
+      Every tile overflows its row by ~180 px and stacks over the next ~6
+      rows — only the last row of tiles is uncovered (matches user report).
+      Fix: `grid-auto-rows: 200px` on the grid + `height: 100%` on the tile;
+      `aspect-ratio: 1/1` removed from the tile (redundant once rows are
+      explicit and tiles fill them via height:100%).
 
   VISUAL VERIFICATION: PENDING (human opens this file in Chrome)
 -->

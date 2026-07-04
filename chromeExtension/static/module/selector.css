@@ -222,6 +222,13 @@
     padding: 16px;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    grid-auto-rows: 200px; /* Explicit row height — required because relying on
+                              aspect-ratio on the grid item does NOT feed back into
+                              auto row track sizing in Chrome: rows collapse to badge
+                              content height (~24 px) and tiles overflow into successive
+                              rows, producing visible overlap. Setting an explicit row
+                              height breaks the cycle and makes every row exactly 200 px.
+                              Tiles fill the row via height:100% below. */
     gap: 12px;
     align-content: start;
     cursor: crosshair;   /* signals drag-marquee is available on background */
@@ -232,7 +239,7 @@
 .ns-ovr-tile {
     position: relative;
     width: 100%;
-    aspect-ratio: 1 / 1;
+    height: 100%;        /* fill the explicit 200 px grid row track */
     overflow: hidden;
     border-radius: 6px;
     background: #1e1e1e;
