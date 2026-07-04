@@ -1,22 +1,2 @@
-.artwork-checkbox {
-    width: 20px;
-    height: 20px;
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    z-index: 1000;
-    cursor: pointer;
-}
-
-#ns-export-button {
-    position: fixed;
-    bottom: 20px;
-    left: 20px;
-    z-index: 1000;
-    padding: 10px 20px;
-    background-color: #ED2553;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-}
+/* nhentai site-specific styles for NS Media Hub extension */
+/* .artwork-checkbox and #ns-export-button removed — replaced by shared selector engine */
