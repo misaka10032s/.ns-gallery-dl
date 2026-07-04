@@ -1,6 +1,6 @@
 {
   "name": "NS Media Hub",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Unified downloader and browser helper for NS Media Hub.",
   "manifest_version": 3,
   "author": "misaka10032s",
@@ -54,7 +54,9 @@
         "https://www.pixiv.net/artworks/*"
       ],
       "js": [
-        "static/module/selector.js",
+        "static/module/selector-catalog.js",
+        "static/module/selector-core.js",
+        "static/module/selector-overview.js",
         "pixiv/content.js"
       ],
       "css": [
@@ -67,7 +69,9 @@
         "https://nhentai.net/g/*"
       ],
       "js": [
-        "static/module/selector.js",
+        "static/module/selector-catalog.js",
+        "static/module/selector-core.js",
+        "static/module/selector-overview.js",
         "nhentai/content.js"
       ],
       "css": [
@@ -80,7 +84,9 @@
         "https://www.wnacg.com/*"
       ],
       "js": [
-        "static/module/selector.js",
+        "static/module/selector-catalog.js",
+        "static/module/selector-core.js",
+        "static/module/selector-overview.js",
         "wnacg/content.js"
       ],
       "css": [
@@ -93,7 +99,9 @@
         "https://yande.re/post?tags=*"
       ],
       "js": [
-        "static/module/selector.js",
+        "static/module/selector-catalog.js",
+        "static/module/selector-core.js",
+        "static/module/selector-overview.js",
         "yande.re/content.js"
       ],
       "css": [
@@ -105,7 +113,9 @@
         "https://www.facebook.com/*"
       ],
       "js": [
-        "static/module/selector.js",
+        "static/module/selector-catalog.js",
+        "static/module/selector-core.js",
+        "static/module/selector-overview.js",
         "facebook/content.js"
       ],
       "css": [
@@ -118,7 +128,9 @@
         "https://forum.gamer.com.tw/Co.php*"
       ],
       "js": [
-        "static/module/selector.js",
+        "static/module/selector-catalog.js",
+        "static/module/selector-core.js",
+        "static/module/selector-overview.js",
         "bahamut/content.js"
       ],
       "css": [
