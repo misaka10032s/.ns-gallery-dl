@@ -337,13 +337,4 @@
         }
     };
 
-    // Alt+G shortcut (also wired in selector-core.js for when mode is active)
-    document.addEventListener('keydown', function (e) {
-        if (e.altKey && (e.key === 'g' || e.key === 'G')) {
-            if (window.NsSelector && NsSelector.isActive()) {
-                window.NsOverview.toggle();
-            }
-        }
-    });
-
 })();

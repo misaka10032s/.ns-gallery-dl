@@ -28,11 +28,5 @@ NsSelector.register({
                    item.url.indexOf('i2.bahamut.com.tw/forum/icons') === -1;
         });
     },
-    submit: function (urls) {
-        chrome.runtime.sendMessage({
-            type: 'downloadImageSelection',
-            pageUrl: location.href,
-            urls: urls
-        });
-    }
+    submitMode: 'imageSelection'
 });

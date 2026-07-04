@@ -156,11 +156,11 @@
         var urls = Array.from(_selected);
         if (!urls.length) { alert('尚未選取任何項目。'); return; }
 
-        // Determine message: adapters with a custom submit (bahamut) need
-        // downloadImageSelection so the backend receives the page URL context.
+        // Determine message type: adapters declare submitMode: 'imageSelection'
+        // when they need the backend to receive page URL context (e.g. bahamut).
         // All other sites use the generic downloadUrls path.
         var msg;
-        if (_config && typeof _config.submit === 'function') {
+        if (_config && _config.submitMode === 'imageSelection') {
             msg = { type: 'downloadImageSelection', pageUrl: location.href, urls: urls };
         } else {
             msg = { type: 'downloadUrls', urls: urls };
