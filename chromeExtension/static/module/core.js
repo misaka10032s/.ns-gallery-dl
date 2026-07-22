@@ -175,12 +175,26 @@ export const downloadImages = async (images) => {
     });
 }
 
-// check if tab is exist
+// url schemes chrome.scripting.executeScript always rejects injection into
+// (e.g. an error page, chrome-internal page, or an about:/edge: page)
+const NON_INJECTABLE_URL_PREFIXES = ["chrome://", "chrome-error://", "about:", "edge://"];
+
+// true if the url is a normal page scripting can inject into
+export const isInjectableUrl = (url) => {
+    if (!url) return false;
+    return !NON_INJECTABLE_URL_PREFIXES.some(prefix => url.startsWith(prefix));
+}
+
+// check if tab exists and is currently showing an injectable (non-error) page
 export const checkTabById = async (tabId) => {
     try{
         const tab = await chrome.tabs.get(tabId);
         if (!tab) {
             console.warn("tab not exist", tabId);
+            return false;
+        }
+        if (!isInjectableUrl(tab.url)) {
+            console.warn("tab url not injectable (error page or internal page)", tabId, tab.url);
             return false;
         }
         return true;
