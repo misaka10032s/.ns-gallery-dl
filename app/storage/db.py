@@ -113,6 +113,16 @@ def init_db() -> None:
                     UNIQUE(domain, provider, file_path)
                 );
 
+                -- Reactive downloader-update guard state (app/services/updater_service.py):
+                -- one row per pip package (app.config.downloaders.DOWNLOADER_PACKAGES),
+                -- tracking the version we last confirmed via a stale-extractor check so a
+                -- repeated failure within the cooldown doesn't re-trigger a pointless update.
+                CREATE TABLE IF NOT EXISTS downloader_state (
+                    package TEXT PRIMARY KEY,
+                    last_checked_version TEXT DEFAULT '',
+                    last_checked_at TEXT DEFAULT ''
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_jobs_status_id ON jobs(status, id);
                 CREATE INDEX IF NOT EXISTS idx_history_event_date ON history_entries(event_date DESC);
                 CREATE INDEX IF NOT EXISTS idx_history_domain ON history_entries(domain);

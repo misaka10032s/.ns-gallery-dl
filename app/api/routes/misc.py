@@ -17,7 +17,15 @@ from app.storage.repositories import cookies_repo
 
 def _check_same_origin() -> tuple[bool, str]:
     """驗證請求來自同源（Origin 或 Referer 必須為 127.0.0.1:7601）。
-    防止本機其他頁面對 cookie 變更端點發送 CSRF 請求。"""
+    防止本機其他頁面對變更端點發送 CSRF 請求。
+
+    KNOWN GAP: this is a same-origin CSRF check only — there is no session/token
+    auth anywhere in this app's mutating endpoints (cookie CRUD here, jobs/history
+    requeue, /api/downloaders/update). That's fine for a strictly local-only
+    (127.0.0.1) tool but would NOT be safe if this server were ever exposed beyond
+    localhost. Reused as-is by app/api/routes/downloaders.py; also imported by
+    that module for the same reason.
+    """
     # 取得 Origin 或 Referer（依 RFC 6454，變更請求瀏覽器通常送 Origin）
     origin = request.headers.get("Origin", "").strip()
     referer = request.headers.get("Referer", "").strip()

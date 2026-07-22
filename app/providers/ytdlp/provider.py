@@ -70,13 +70,14 @@ def _probe_user_root(executable: str, url: str, root: Path, cookie_path: str | N
 
 
 def _resolve_executable(name: str) -> str | None:
+    # yt-dlp is pip-managed (see app/config/downloaders.py) and installed into the
+    # venv, so it's on PATH like any other console script — prefer that. A
+    # repo-root override (e.g. a manually dropped yt-dlp.exe) still wins if present,
+    # for local troubleshooting. The old ".ns-yt-dlp" sibling-repo fallback is
+    # removed: that path pointed at a repo that no longer exists.
     local = ROOT_DIR / f"{name}.exe"
     if local.exists():
         return str(local)
-
-    sibling = ROOT_DIR.parent / ".ns-yt-dlp" / f"{name}.exe"
-    if sibling.exists():
-        return str(sibling)
 
     return which(name)
 
@@ -92,7 +93,7 @@ def download(url: str) -> DownloadResult:
             provider=Provider.YTDLP,
             domain=domain,
             download_path=str(root),
-            error="yt-dlp executable not found in repo, sibling .ns-yt-dlp repo, or PATH",
+            error="yt-dlp executable not found (repo-root override or PATH/venv Scripts) — check `pip install yt-dlp` ran",
         )
 
     command = [
