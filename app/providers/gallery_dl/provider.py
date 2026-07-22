@@ -36,9 +36,28 @@ def _cookie_candidates(url: str, domain: str) -> list[str | None]:
     return [cookie_path]
 
 
-def _simulate(url: str, env: dict[str, str], cookie_path: str | None = None) -> tuple[int, int]:
+def _last_error_line(text: str) -> str:
+    """
+    gallery-dl logs via Python `logging` with LOG_FORMAT = "[{name}][{levelname}]
+    {message}" (gallery_dl/output.py) to STDERR by default — e.g.
+    `[gallery-dl][error] Unsupported URL '...'` or
+    `[danbooru][error] HttpError: '404 Not Found' for '...'` (verified live against
+    the installed gallery-dl CLI). Return the last such "[...][error]" line, or —
+    if none matched — the last non-empty line as a fallback so *some* diagnostic
+    text always reaches the job's error field instead of being silently dropped.
+    """
+    if not text:
+        return ""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    error_lines = [line for line in lines if "][error]" in line.lower()]
+    if error_lines:
+        return error_lines[-1]
+    return lines[-1] if lines else ""
+
+
+def _simulate(url: str, env: dict[str, str], cookie_path: str | None = None) -> tuple[int, int, str]:
     command = ["gallery-dl", "--simulate", url, *_cookies_args(cookie_path)]
-    result = subprocess.run(command, capture_output=True, text=True, env=env, encoding="utf-8")
+    result = subprocess.run(command, capture_output=True, text=True, env=env, encoding="utf-8", errors="replace")
     count = len(
         [
             line
@@ -46,10 +65,17 @@ def _simulate(url: str, env: dict[str, str], cookie_path: str | None = None) -> 
             if line and not line.startswith("[") and not line.upper().startswith("ERROR:")
         ]
     )
-    return result.returncode, count
+    # gallery-dl's own errors land on stderr (see _last_error_line); stdout is
+    # checked too as a fallback in case something logs there instead. Only
+    # extract on a non-zero exit — on success, stdout is legitimate path output,
+    # not diagnostic text, and must never be mistaken for an "error".
+    error = ""
+    if result.returncode != 0:
+        error = _last_error_line(result.stderr) or _last_error_line(result.stdout)
+    return result.returncode, count, error
 
 
-def _gallery_download(url: str, env: dict[str, str], download_root: Path, cookie_path: str | None = None) -> tuple[str, int, int]:
+def _gallery_download(url: str, env: dict[str, str], download_root: Path, cookie_path: str | None = None) -> tuple[str, int, int, str]:
     command = ["gallery-dl", url, "-D", str(download_root), *_cookies_args(cookie_path)]
     process = subprocess.Popen(
         command,
@@ -62,8 +88,10 @@ def _gallery_download(url: str, env: dict[str, str], download_root: Path, cookie
     )
     downloaded = 0
     skipped = 0
+    output_lines: list[str] = []
     for line in iter(process.stdout.readline, ""):
         text = line.rstrip("\r\n")
+        output_lines.append(text)
         # why: gallery-dl 對已存在檔案輸出 '# <path>'，新檔輸出純路徑、log 行以 '[' 開頭
         if text.startswith("# "):
             skipped += 1
@@ -76,7 +104,10 @@ def _gallery_download(url: str, env: dict[str, str], download_root: Path, cookie
     if downloaded or skipped:
         sys.stdout.write(f"[gallery-dl ] 本次：下載 {downloaded} 張、略過 {skipped} 張\n")
     status = "success" if process.returncode == 0 else "failed"
-    return status, downloaded, skipped
+    # stderr was merged into stdout above (stderr=subprocess.STDOUT), so the
+    # "[name][error] ..." line (if any) is already among output_lines.
+    error = _last_error_line("\n".join(output_lines)) if status == "failed" else ""
+    return status, downloaded, skipped, error
 
 
 def _probe_pixiv_user_root(url: str, root: Path) -> Path:
@@ -158,18 +189,21 @@ def download(url: str, tokens: dict, max_retries: int = 5, retry_delay: int = 5,
     if domain == "pixiv.net" and root == provider_root(Provider.GALLERY_DL, domain) and tokens.get("pixiv_author_hint"):
         root = pixiv_root(domain, tokens.get("pixiv_author_hint"))
     saw_zero_results = False
+    last_error = ""
     for attempt in range(1, max_retries + 1):
         attempt_failed = False
         for cookie_path in cookie_candidates:
-            code, total = _simulate(url, env, cookie_path)
+            code, total, sim_error = _simulate(url, env, cookie_path)
             if code != 0:
                 attempt_failed = True
+                if sim_error:
+                    last_error = sim_error
                 continue
             if total == 0:
                 saw_zero_results = True
                 continue
             saw_zero_results = False
-            status, downloaded, skipped = _gallery_download(url, env, root, cookie_path)
+            status, downloaded, skipped, dl_error = _gallery_download(url, env, root, cookie_path)
             if status == "success":
                 # why: 整個 user 連結全部已存在 → 視為略過而非下載成功
                 job_status = JobStatus.SKIPPED if downloaded == 0 and skipped > 0 else JobStatus.SUCCESS
@@ -181,6 +215,8 @@ def download(url: str, tokens: dict, max_retries: int = 5, retry_delay: int = 5,
                     metadata={"downloaded": downloaded, "skipped": skipped},
                 )
             attempt_failed = True
+            if dl_error:
+                last_error = dl_error
         if domain == "pixiv.net" and attempt_failed:
             token = get_pixiv_refresh_token(tokens)
             if token:
@@ -191,4 +227,10 @@ def download(url: str, tokens: dict, max_retries: int = 5, retry_delay: int = 5,
 
     if saw_zero_results:
         return DownloadResult(status=JobStatus.SKIPPED, provider=Provider.GALLERY_DL, domain=domain, download_path=str(root))
-    return DownloadResult(status=JobStatus.FAILED, provider=Provider.GALLERY_DL, domain=domain, download_path=str(root))
+    return DownloadResult(
+        status=JobStatus.FAILED,
+        provider=Provider.GALLERY_DL,
+        domain=domain,
+        download_path=str(root),
+        error=last_error or "gallery-dl failed",
+    )

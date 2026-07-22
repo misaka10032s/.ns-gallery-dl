@@ -12,12 +12,35 @@ from app.storage.repositories import downloader_state_repo
 # insensitively against a FAILED download's error message. Kept centralized and
 # tight on purpose — a broad match would trigger pointless pip upgrades on
 # unrelated failures (auth walls, network errors, cookie problems, ...).
-#   - "cannot parse data" / "unable to extract" — yt-dlp's extractor-broke phrasing.
-#   - "unable to extract" / "no results"        — gallery-dl's analogous phrasing.
+#
+#   - "cannot parse data" — yt-dlp's extractor-broke phrasing.
+#   - "unable to extract" — shared: yt-dlp's phrasing AND gallery-dl's
+#     `exception.AbortExtraction` messages (verified in gallery-dl's own extractor
+#     source, e.g. patreon.py "Unable to extract bootstrap data", pixiv.py
+#     "Unable to extract Ugoira URL", bilibili.py "Unable to extract INITIAL_STATE
+#     data" — all raised when a site's page/API structure changed).
+#   - "failed to parse json data"   — gallery-dl's JSONDecodeError catch-all
+#     (job.py: `log.error("Failed to parse JSON data:  %s: %s", ...)`); the
+#     classic "site's API response shape changed" symptom.
+#   - "an unexpected error occurred" — gallery-dl's generic per-extractor
+#     exception catch-all (job.py: `log.error("An unexpected error occurred: %s
+#     - %s. Please run gallery-dl again with --verbose ...")`) — fires on ANY
+#     unhandled exception while an extractor runs (KeyError/AttributeError/...),
+#     which in practice is overwhelmingly "the site changed and the extractor's
+#     assumptions broke", not a gallery-dl bug.
+#
+# Verified live against the installed gallery-dl CLI: `[gallery-dl][error]
+# Unsupported URL '...'` / `[danbooru][error] HttpError: '404 Not Found' for
+# '...'` — confirming gallery-dl's real wording is `[<name>][error] <message>`,
+# printed to stderr (gallery_dl/output.py LOG_FORMAT). Deliberately NOT matched:
+# "unsupported url" (ambiguous — could just be a genuinely unsupported site, not
+# staleness) and "no results" (that's an INFO-level log for a legitimately empty
+# gallery, not a FAILED-path error — never reaches this classifier in practice).
 STALE_EXTRACTOR_SIGNATURES: tuple[str, ...] = (
     "cannot parse data",
     "unable to extract",
-    "no results",
+    "failed to parse json data",
+    "an unexpected error occurred",
 )
 
 

@@ -23,10 +23,16 @@ class TestIsStaleExtractorError:
     @pytest.mark.parametrize(
         "error",
         [
+            # yt-dlp
             "ERROR: Cannot parse data",
             "ERROR: Unable to extract video data",
             "unable to extract user info",
-            "No results found for pattern",
+            # gallery-dl (verified real wording — see updater_service.py comment)
+            "[gallery-dl][error] Unable to extract bootstrap data",
+            "[danbooru][error] Failed to parse JSON data:  JSONDecodeError: Expecting value",
+            "[pixiv][error] An unexpected error occurred: KeyError - 'illustId'. "
+            "Please run gallery-dl again with the --verbose flag, copy its output "
+            "and report this issue on https://github.com/mikf/gallery-dl/issues .",
         ],
     )
     def test_matches_known_signatures(self, error):
@@ -38,6 +44,9 @@ class TestIsStaleExtractorError:
             "",
             None,
             "HTTP Error 403: Forbidden",
+            # gallery-dl: deliberately NOT matched (see updater_service.py comment)
+            "[gallery-dl][error] Unsupported URL 'https://example.com/nope'",
+            "[danbooru][error] HttpError: '404 Not Found' for 'https://danbooru.donmai.us/posts/1.json'",
             "Connection timed out",
             "Sign in to confirm your age",
         ],
