@@ -238,5 +238,28 @@ export const useHubStore = defineStore('hub', {
         this.fetchHistory({ silent: true }),
       ])
     },
+    async updateDownloaders() {
+      // Errors (409 佇列忙碌中 / 403 同源檢查失敗) surface automatically via
+      // runTask()'s catch → notify(error.message, 'error') — no special-casing needed here.
+      const result = await this.runTask('downloader-update', () =>
+        apiRequest('/api/downloaders/update', { method: 'POST' }),
+      )
+      const results = Array.isArray(result?.results) ? result.results : []
+      if (!results.length) {
+        this.notify('沒有可更新的下載器套件。', 'error')
+        return results
+      }
+      const summary = results
+        .map((item) => {
+          const label = item.package || '未知套件'
+          if (item.changed) {
+            return `${label} ${item.old_version || '未知'} → ${item.new_version || '未知'}`
+          }
+          return `${label} 已是最新 (${item.new_version || item.old_version || '未知'})`
+        })
+        .join('；')
+      this.notify(`下載器更新完成：${summary}`)
+      return results
+    },
   },
 })
