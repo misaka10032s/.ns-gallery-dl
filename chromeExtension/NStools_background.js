@@ -72,9 +72,13 @@ chrome.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
 
         // init Swal for each tab
         tabVars[tabId] = {};
-        executeScript(tabId, _initSwal);
-        executeScript(tabId, handleMessage);
-        executeScript(tabId, useUtils, true);
+        try {
+            await executeScript(tabId, _initSwal);
+            await executeScript(tabId, handleMessage);
+            await executeScript(tabId, useUtils, true);
+        } catch (e) {
+            console.error("executeScript error: ", e);
+        }
     }
 });
 
@@ -117,13 +121,28 @@ for(const [key, value] of Object.entries(omniboxCallback)){
 //     chrome.omnibox.setDefaultSuggestion({ description: "Error fetching conversion rate." });
 // });
 
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.scripting.registerContentScripts([
-    {
-      id: "overrideOnCopyAndPaste",
-      matches: ["https://www.dailydaily-up.com/*"],
-      js: ["static/js/antiPreventCopy.js"],
-      runAt: "document_start"
+chrome.runtime.onInstalled.addListener(async () => {
+  try {
+    const dynamicScripts = [
+      {
+        id: "overrideOnCopyAndPaste",
+        matches: ["https://www.dailydaily-up.com/*"],
+        js: ["static/js/antiPreventCopy.js"],
+        runAt: "document_start"
+      }
+    ];
+    // Chrome persists dynamic content scripts across reloads/updates, so a
+    // re-fired onInstalled (e.g. dev-mode "Reload") would otherwise throw
+    // "Duplicate script ID". Unregister any already-registered ids first
+    // (ignore if not present), then re-register clean.
+    const ids = dynamicScripts.map(s => s.id);
+    try {
+        await chrome.scripting.unregisterContentScripts({ ids });
+    } catch (e) {
+        // not registered yet - ignore
     }
-  ]);
+    await chrome.scripting.registerContentScripts(dynamicScripts);
+  } catch (e) {
+    console.error("registerContentScripts error: ", e);
+  }
 });
