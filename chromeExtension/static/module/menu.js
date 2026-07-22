@@ -4,7 +4,7 @@ import { executeScript, getDomain, executeStoreScript, injectScript, downloadIma
 import { tabVars, storeData } from "./store.js";
 import key from "../secret/key.js";
 import { submitLinks } from "../../core/api.js";
-import { getSiteAction, inferProviderHint, normalizeDownloadTargets } from "../../core/targets.js";
+import { inferProviderHint, normalizeDownloadTargets } from "../../core/targets.js";
 
 async function submitCurrentTarget(target, { tab, providerHint = null } = {}) {
     const targets = normalizeDownloadTargets(target);
@@ -23,88 +23,13 @@ async function submitCurrentTarget(target, { tab, providerHint = null } = {}) {
 // #                                                      #
 // ########################################################
 export const contextMenus = {
-    downloadRoot: {
-        title: "NS Media Hub",
-        contexts: ["page", "selection", "link"],
-    },
-    downloadSelection: {
-        parentId: "downloadRoot",
-        title: "下載: %s",
-        contexts: ["selection"],
-        script: async (info, tab) => {
-            await submitCurrentTarget(info.selectionText, { tab });
-        }
-    },
-    downloadLink: {
-        parentId: "downloadRoot",
-        title: "下載此連結",
-        contexts: ["link"],
-        script: async (info, tab) => {
-            await submitCurrentTarget(info.linkUrl, { tab });
-        }
-    },
-    downloadYoutubePage: {
-        parentId: "downloadRoot",
-        title: "下載此影片",
-        contexts: ["page"],
-        script: async (info, tab) => {
-            await submitCurrentTarget(tab.url, { tab, providerHint: "ytdlp" });
-        },
-        documentUrlPatterns: ["https://www.youtube.com/*", "https://youtu.be/*"]
-    },
-    downloadXPage: {
-        parentId: "downloadRoot",
-        title: "下載此貼文",
-        contexts: ["page"],
-        script: async (info, tab) => {
-            await submitCurrentTarget(tab.url, { tab });
-        },
-        documentUrlPatterns: ["https://x.com/*", "https://twitter.com/*"]
-    },
-    downloadFacebookPage: {
-        parentId: "downloadRoot",
+    downloadContent: {
         title: "下載此內容",
-        contexts: ["page"],
+        contexts: ["page", "selection", "link"],
         script: async (info, tab) => {
-            await submitCurrentTarget(tab.url, { tab, providerHint: "ytdlp" });
-        },
-        documentUrlPatterns: ["https://www.facebook.com/*", "https://fb.watch/*"]
-    },
-    downloadPixivPage: {
-        parentId: "downloadRoot",
-        title: "下載此作品",
-        contexts: ["page"],
-        script: async (info, tab) => {
-            await submitCurrentTarget(tab.url, { tab, providerHint: "gallery-dl" });
-        },
-        documentUrlPatterns: ["https://www.pixiv.net/users/*", "https://www.pixiv.net/artworks/*"]
-    },
-    downloadNhentaiPage: {
-        parentId: "downloadRoot",
-        title: "下載此本子",
-        contexts: ["page"],
-        script: async (info, tab) => {
-            await submitCurrentTarget(tab.url, { tab, providerHint: "gallery-dl" });
-        },
-        documentUrlPatterns: ["https://nhentai.net/*"]
-    },
-    downloadWnacgPage: {
-        parentId: "downloadRoot",
-        title: "下載此作品",
-        contexts: ["page"],
-        script: async (info, tab) => {
-            await submitCurrentTarget(tab.url, { tab, providerHint: "gallery-dl" });
-        },
-        documentUrlPatterns: ["https://wnacg.com/*", "https://www.wnacg.com/*"]
-    },
-    downloadYanderePage: {
-        parentId: "downloadRoot",
-        title: "下載此頁面",
-        contexts: ["page"],
-        script: async (info, tab) => {
-            await submitCurrentTarget(tab.url, { tab, providerHint: "gallery-dl" });
-        },
-        documentUrlPatterns: ["https://yande.re/post", "https://yande.re/post?tags=*"]
+            const target = info.selectionText || info.linkUrl || tab.url;
+            await submitCurrentTarget(target, { tab, providerHint: info.selectionText ? null : inferProviderHint(target) });
+        }
     },
     openPopup: {
         title: "開啟插件",
@@ -334,23 +259,6 @@ export const contextMenus = {
                 index: tab.index + 1
             });
         }
-    },
-    ytdlp: {
-        parentId: "downloadRoot",
-        title: "使用 provider 自動判斷下載",
-        contexts: ["selection", "link", "page"],
-        script: async (info, tab) => {
-            const target = info.selectionText || info.linkUrl || tab.url;
-            await submitCurrentTarget(target, { tab, providerHint: info.selectionText ? null : inferProviderHint(target) });
-        },
-        documentUrlPatterns: [
-            "https://www.youtube.com/*",
-            "https://youtu.be/*",
-            "https://www.facebook.com/reel/*",
-            "https://www.facebook.com/watch/*",
-            "https://x.com/*",
-            "https://twitter.com/*"
-        ]
     },
     // 手機板轉為桌面版區，以後可能要獨立出來
     taobaoMobile2Desktop: {
