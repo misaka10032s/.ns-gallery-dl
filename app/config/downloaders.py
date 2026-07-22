@@ -17,3 +17,9 @@ DOWNLOADER_PACKAGES: dict[str, str] = {
 # again — the failure is treated as a non-version upstream issue instead of retried
 # in a loop.  Default 6 hours.
 UPDATE_COOLDOWN_SECONDS = 6 * 60 * 60
+
+# `python -m pip install -U <package>` timeout. The reactive hook runs this
+# synchronously inside the single queue worker thread — with NO timeout, a
+# network hang (registry unreachable, slow mirror, ...) would block the entire
+# download queue indefinitely. 300s is generous for a single small package.
+PIP_UPDATE_TIMEOUT_SECONDS = 300

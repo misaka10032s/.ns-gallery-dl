@@ -4,7 +4,7 @@ import subprocess
 import sys
 from datetime import datetime, timedelta
 
-from app.config.downloaders import DOWNLOADER_PACKAGES, UPDATE_COOLDOWN_SECONDS
+from app.config.downloaders import DOWNLOADER_PACKAGES, PIP_UPDATE_TIMEOUT_SECONDS, UPDATE_COOLDOWN_SECONDS
 from app.storage.db import init_db
 from app.storage.repositories import downloader_state_repo
 
@@ -80,26 +80,40 @@ def update_downloader(package: str) -> dict:
     """
     Upgrade one pip package via `python -m pip install -U <package>` (never `import
     pip` — pip is not a stable import API). Reads the tool's version BEFORE and
-    AFTER via `<package> --version` subprocess calls.
+    AFTER via `<package> --version` subprocess calls. The pip call is bounded by
+    PIP_UPDATE_TIMEOUT_SECONDS (app/config/downloaders.py) — this runs
+    synchronously inside the single queue worker thread, so an unbounded network
+    hang would otherwise freeze the whole download queue.
 
-    Returns {"package", "old_version", "new_version", "changed": bool}.
+    Returns {"package", "old_version", "new_version", "changed": bool,
+    "timed_out": bool}. On a timeout: `changed` is always False (we don't know
+    whether the upgrade actually landed, so we never claim/signal a version
+    change) and `timed_out` is True so the caller can distinguish "confirmed
+    already latest" from "couldn't even check".
     """
     old_version = _get_version(package)
-    subprocess.run(
-        [sys.executable, "-m", "pip", "install", "-U", package],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    timed_out = False
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-U", package],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=PIP_UPDATE_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        timed_out = True
+
     new_version = _get_version(package)
-    changed = new_version is not None and new_version != old_version
+    changed = not timed_out and new_version is not None and new_version != old_version
     return {
         "package": package,
         "old_version": old_version,
         "new_version": new_version,
         "changed": changed,
+        "timed_out": timed_out,
     }
 
 
@@ -122,11 +136,16 @@ def maybe_reactive_update(provider_value: str) -> dict:
       - If we're within the cooldown window AND the installed version still equals
         the version we last confirmed → SKIP the update entirely (no pip call, no
         retry) and return a clear "already latest, not a version problem" message.
-      - Otherwise → run update_downloader(), persist the freshly-checked version +
-        timestamp (refreshing the cooldown either way), and:
-          - if the version actually changed → signal the caller to retry the job once.
-          - if it did NOT change (already latest) → return the same "already latest"
-            message instead of retrying (guards against an update→fail→update loop).
+      - Otherwise → run update_downloader():
+          - if the pip call TIMED OUT → do NOT persist any state (a timeout is
+            NOT "successfully confirmed latest" — persisting it would wrongly
+            arm the cooldown and suppress a real check later); do NOT retry;
+            return a clear zh-TW timeout message.
+          - if the version actually changed → persist the freshly-checked
+            version + timestamp, signal the caller to retry the job once.
+          - if it did NOT change (already latest) → persist state (refreshing
+            the cooldown) and return the "already latest" message instead of
+            retrying (guards against an update→fail→update loop).
 
     Returns {"retried": bool, "changed": bool, "message": str}. `message` is only
     set on a non-retry outcome (empty string when `retried` is True) — the caller
@@ -158,6 +177,18 @@ def maybe_reactive_update(provider_value: str) -> dict:
         }
 
     result = update_downloader(package)
+
+    if result["timed_out"]:
+        # NOT persisted: a timeout means we never actually confirmed a version —
+        # recording it now would incorrectly arm the cooldown and could suppress
+        # a real check on the next failure. No retry either (we don't know if
+        # anything changed).
+        return {
+            "retried": False,
+            "changed": False,
+            "message": f"更新 {package} 逾時（pip 安裝逾時，可能是網路問題），已略過重試，稍後可再試一次",
+        }
+
     downloader_state_repo.set_state(
         package,
         result["new_version"] or installed or "",
