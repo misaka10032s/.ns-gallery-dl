@@ -45,7 +45,10 @@ if not exist "%INSTALL_FLAG%" (
 if defined NEEDS_INSTALL (
     echo [*] Installing/updating dependencies...
     pip install -r requirements.txt --upgrade
-    pip install gallery-dl --upgrade
+    REM -u / -update always lands here too (it deletes INSTALL_FLAG above, forcing
+    REM NEEDS_INSTALL) — so this single call covers both "version bumped" and
+    REM "user asked to update" without double-running it.
+    call :update_downloaders
     if %errorlevel% equ 0 (
         echo %SCRIPT_VERSION%>"%INSTALL_FLAG%"
     )
@@ -99,9 +102,23 @@ echo   (no args)        Download URLs from dl.txt via NS Media Hub
 echo   -s / --server    Start the local API server (port 7601)
 echo   -b / --bot       Start the Discord bot
 echo   -s -b / -sb      Start local API server AND Discord bot together
-echo   -u / --update    Force-reinstall all dependencies
+echo   -u / --update    Force-reinstall all dependencies (also updates yt-dlp / gallery-dl)
 echo   -h / --help      Show this help message
 echo.
 
 endlocal
 pause
+goto :EOF
+
+:update_downloaders
+REM Update every downloader tool pip package. Package list is driven by
+REM app/config/downloaders.py (single source of truth — see that file to add a
+REM future downloader); falls back to the known pair if Python or the app
+REM package isn't importable yet (e.g. very first install, before requirements
+REM are in place).
+set "DOWNLOADER_PKGS="
+for /f "delims=" %%P in ('python -c "from app.config.downloaders import DOWNLOADER_PACKAGES; print(' '.join(DOWNLOADER_PACKAGES.values()))"') do set "DOWNLOADER_PKGS=%%P"
+if not defined DOWNLOADER_PKGS set "DOWNLOADER_PKGS=yt-dlp gallery-dl"
+echo [*] Updating downloader packages: %DOWNLOADER_PKGS%
+pip install --upgrade %DOWNLOADER_PKGS%
+exit /b 0

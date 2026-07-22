@@ -11,6 +11,7 @@ from app.domain.jobs import DownloadResult, JobRequest
 from app.providers.direct_file import provider as direct_file_provider
 from app.providers.gallery_dl import provider as gallery_provider
 from app.providers.ytdlp import provider as ytdlp_provider
+from app.services import updater_service
 
 SHORTCUT_PATTERNS: tuple[tuple[re.Pattern[str], Callable[[str], str]], ...]
 
@@ -117,6 +118,9 @@ def download_request(request: JobRequest, tokens: dict) -> DownloadResult:
     attempts: list[dict] = []
     result: DownloadResult | None = None
     providers = provider_candidates(request.url, request.provider)
+    # HARD CAP: at most one auto-update-retry per job, regardless of how many
+    # provider candidates this job tries — prevents an update→fail→update loop.
+    update_retry_used = False
     print(f"{_tag(providers[0])} 接收到網址: {request.url}")
     for provider in providers:
         print(f"{_tag(provider)} 正在下載: {request.url}")
@@ -135,6 +139,35 @@ def download_request(request: JobRequest, tokens: dict) -> DownloadResult:
             else:
                 print(f"{_tag(result.provider)} 已跳過: {request.url}{_counts_suffix(result)}")
             return _with_attempt_metadata(result, attempts, request.provider, request.metadata)
+
+        # Reactive downloader update: only on a failure that looks like a stale
+        # extractor, only once per job. maybe_reactive_update() itself guards
+        # against mindless updating (cooldown + "already latest" short-circuit).
+        if not update_retry_used and result.status == JobStatus.FAILED and updater_service.is_stale_extractor_error(result.error):
+            update_retry_used = True
+            outcome = updater_service.maybe_reactive_update(provider.value)
+            if outcome["retried"]:
+                print(f"{_tag(provider)} 偵測到疑似過期擷取器錯誤，已更新套件，重試一次: {request.url}")
+                retry_result = _download_with_provider(provider, request.url, tokens=tokens, metadata=request.metadata)
+                attempts.append(
+                    {
+                        "provider": provider.value,
+                        "status": retry_result.status.value,
+                        "error": retry_result.error,
+                        "auto_update_retry": True,
+                    }
+                )
+                result = retry_result
+                if result.status in (JobStatus.SUCCESS, JobStatus.SKIPPED):
+                    if result.status == JobStatus.SUCCESS:
+                        print(f"{_tag(result.provider)} 下載成功: {request.url}  →  {result.download_path}{_counts_suffix(result)}")
+                    else:
+                        print(f"{_tag(result.provider)} 已跳過: {request.url}{_counts_suffix(result)}")
+                    return _with_attempt_metadata(result, attempts, request.provider, request.metadata)
+            elif outcome["message"]:
+                # Already latest (or no registered package) — replace the raw
+                # extractor error with a clear zh-TW message; do NOT retry.
+                result.error = outcome["message"]
     if result is None:
         result = DownloadResult(
             status=JobStatus.FAILED,

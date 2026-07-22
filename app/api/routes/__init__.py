@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask import Flask
 
-from . import auth, gallery, history, jobs, misc, pages, queue
+from . import auth, downloaders, gallery, history, jobs, misc, pages, queue
 
 
 def register_routes(app: Flask) -> None:
@@ -13,3 +13,4 @@ def register_routes(app: Flask) -> None:
     auth.register(app)
     misc.register(app)
     gallery.register(app)
+    downloaders.register(app)

@@ -36,10 +36,26 @@ else
     fi
 fi
 
+update_downloaders() {
+    # Package list is driven by app/config/downloaders.py (single source of truth —
+    # see that file to add a future downloader); falls back to the known pair if
+    # Python or the app package isn't importable yet.
+    local pkgs
+    pkgs=$(python3 -c "from app.config.downloaders import DOWNLOADER_PACKAGES; print(' '.join(DOWNLOADER_PACKAGES.values()))" 2>/dev/null)
+    if [ -z "$pkgs" ]; then
+        pkgs="yt-dlp gallery-dl"
+    fi
+    echo "[*] Updating downloader packages: $pkgs"
+    pip install --upgrade $pkgs
+}
+
 if [ "$NEEDS_INSTALL" = true ]; then
     echo "[*] Installing/updating dependencies..."
     pip install -r requirements.txt --upgrade
-    pip install gallery-dl --upgrade
+    # -u / -update always lands here too (it removes INSTALL_FLAG above, forcing
+    # NEEDS_INSTALL) — so this single call covers both "version bumped" and "user
+    # asked to update" without double-running it.
+    update_downloaders
     if [ $? -eq 0 ]; then
         echo "$SCRIPT_VERSION" > "$INSTALL_FLAG"
     fi
@@ -56,7 +72,7 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     echo "  -s / --server    Start the Flask server (port 7601)"
     echo "  -b / --bot       Start the Discord bot"
     echo "  -s -b / -sb      Start Flask server AND Discord bot together"
-    echo "  -u / --update    Force-reinstall all dependencies"
+    echo "  -u / --update    Force-reinstall all dependencies (also updates yt-dlp / gallery-dl)"
     echo "  -h / --help      Show this help message"
     echo ""
     deactivate

@@ -22,11 +22,29 @@ Chrome extension, and centralised cookie management. Backend is Python/Flask; fr
 ## Stack
 - Backend: Python 3.11 + Flask (API + serves frontend build); SQLite at `data/app.db`
 - Frontend: Vue 3 + Vite 8 + Pinia + vue-router; SCSS (sass)
-- Download engines: gallery-dl, yt-dlp
+- Download engines: gallery-dl, yt-dlp — both pip-managed via `venv`, invoked as subprocesses
+  (yt-dlp resolves through PATH/venv `Scripts`, NOT a standalone `.exe`; the old sibling
+  `.ns-yt-dlp` repo fallback is gone — that repo no longer exists)
 - Bot: Discord (Python)
 - Chrome extension: `chromeExtension/` (selection export, site-nav, omnibox, redirect cleanup)
-- External repos absorbed — do NOT modify: `.ns-yt-dlp`, `javascript/ns-chrome-tool`
+- External repos absorbed — do NOT modify: `javascript/ns-chrome-tool`
 - **Windows:** use `python` (not `python3`)
+
+### Downloader package updates (yt-dlp / gallery-dl)
+- Central registry: `app/config/downloaders.py` `DOWNLOADER_PACKAGES` — add a future downloader
+  in ONE line here; `app/services/updater_service.py`, the manual API endpoint, and the launcher
+  `-u`/`-update` flag all derive from it.
+- **Reactive only** — on a download failure classified as a "stale extractor" error (tight,
+  centralized signature list in `updater_service.STALE_EXTRACTOR_SIGNATURES`), the failing
+  provider's package is upgraded via pip and the job retries ONCE. A cooldown + "already
+  installed version" guard (`app/config/downloaders.py` `UPDATE_COOLDOWN_SECONDS`,
+  `app/storage/repositories/downloader_state_repo.py`) prevents mindless update→fail→update loops.
+- **Manual** — `POST /api/downloaders/update` (same-origin guarded, refuses 409 while a job is
+  running) + a "更新下載器" button in the Web UI header.
+- **Launcher `-U`** — `dl.cmd -u` / `dl.sh -u` also force-updates every registered downloader
+  package via the same registry.
+- **NO scheduled / daily / every-startup auto-update** — by design, to keep startup fast and
+  avoid pointless upstream churn.
 
 ## Run commands
 
@@ -36,7 +54,7 @@ Chrome extension, and centralised cookie management. Backend is Python/Flask; fr
 | `-s` | Start server + UI (auto-rebuilds frontend if source changed) |
 | `-b` | Start Discord bot |
 | `-s -b` | Start both |
-| `-u` | Reinstall / update dependencies |
+| `-u` | Reinstall / update dependencies (also force-updates yt-dlp / gallery-dl) |
 | `-h` | Show help |
 
 Web UI: `http://127.0.0.1:7601/` — pages: `/`, `/history`, `/queue`, `/jobs`, `/cookies`
@@ -52,11 +70,11 @@ npm run dev     # dev server at 127.0.0.1:5173
 ```
 frontend/           Vue + Vite + Pinia source (styles/ = shared SCSS partials)
 app/
-  api/              Flask app + API entry (routes/: history/queue/jobs/auth/misc/pages)
-  config/           paths, env config, feature flags
+  api/              Flask app + API entry (routes/: history/queue/jobs/auth/misc/pages/downloaders)
+  config/           paths, env config, feature flags, downloader package registry
   domain/           job / provider / status types
   providers/        gallery-dl, yt-dlp, site-specific, cookies
-  services/         queue, history, bot, token, bridge
+  services/         queue, history, bot, token, bridge, downloader updater
   storage/          SQLite schema + repositories
   ui/               Vite build output (served by Flask; gitignored)
 chromeExtension/    Chrome extension (one canonical copy)

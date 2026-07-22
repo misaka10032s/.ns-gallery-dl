@@ -37,6 +37,14 @@ async function refreshOverview() {
   ])
   store.notify('儀表板資料已更新。')
 }
+
+async function updateDownloaders() {
+  try {
+    await store.updateDownloaders()
+  } catch {
+    // store.updateDownloaders() already surfaced the error via a toast.
+  }
+}
 </script>
 
 <template>
@@ -79,6 +87,15 @@ async function refreshOverview() {
       <button class="btn btn--ghost btn--small app-header__refresh" type="button" @click="refreshOverview">
         <span class="app-header__refresh-icon" aria-hidden="true">↻</span>
         <span class="app-header__refresh-text">重新整理</span>
+      </button>
+      <button
+        class="btn btn--ghost btn--small app-header__refresh app-header__downloader-update"
+        type="button"
+        :disabled="store.isLoading('downloader-update')"
+        @click="updateDownloaders"
+      >
+        <span class="app-header__refresh-icon" aria-hidden="true">⇪</span>
+        <span class="app-header__refresh-text">更新下載器</span>
       </button>
       <div class="sync-text">
         <span class="sync-text__full">最後同步：{{ syncLabel }}</span>
