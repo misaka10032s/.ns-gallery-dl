@@ -1,0 +1,9 @@
+# Blueprint viewer config (SPEC §5.2 UX 底線：頁首/<title> 顯示專案名稱)。
+title: ns-media-hub
+systems_order:
+  - backend-provider
+  - backend-service
+  - backend-core
+  - frontend
+  - bot
+  - extension

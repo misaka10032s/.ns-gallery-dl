@@ -1,0 +1,51 @@
+download/
+save/
+data/
+__pycache__/
+venv/
+frontend/node_modules/
+frontend/.vite/
+cookies/*
+!cookies/.gitkeep
+
+dl.txt
+todolist.txt
+.env
+history.json
+token.json
+
+cli.gemini.cmd
+
+module/cookies/*
+chromeExtension/static/secret/*
+app/ui/*
+!app/ui/.gitkeep
+
+# === Claude Code / graphify ===
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/worktrees/
+
+# Generated knowledge graph
+graphify-out/
+
+# Agent / browser-test artifacts — never tracked
+final_runs/
+screenshots/
+**/screenshots/
+*.screenshot.png
+.playwright-mcp/
+.impeccable/
+impeccable-out/
+.remember/
+
+# Catch-all for *.local.* / *.local config/env overrides
+*.local.*
+*.local
+
+# Propagation backups
+*.bak-*
+
+# === graphify-only additions ===
+# Generated blueprint viewer output — tracked in git, but must NEVER be graphified (5MB generated artifact).
+docs/blueprint/*.html
