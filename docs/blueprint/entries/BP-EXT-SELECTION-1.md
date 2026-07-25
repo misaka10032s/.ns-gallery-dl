@@ -14,7 +14,7 @@ exec_links:
   - chromeExtension/tests/test-catalog-resolution.js
   - chromeExtension/tests/test-selection-math.js
 superpowers:
-  - path: .claude/context/selection-mode-v2-spec.md
+  - path: docs/superpowers/specs/selection-mode-v2-spec.md
     label: Selection Mode v2 — 核准設計（2026-07-04，approved by owner via @PM brainstorming）
 origin: "approved 2026-07-04（spec 文件自身標頭日期），merged 1eeb556 + spec commit f51df16"
 ---

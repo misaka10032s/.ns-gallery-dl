@@ -14,11 +14,6 @@ Chrome extension, and centralised cookie management. Backend is Python/Flask; fr
 - Every done/correct/dead/broken claim carries evidence: file:line, test output, or read-back.
 - Target missing or contradicting the task → STOP and ask; never scaffold around it.
 
-## Context index
-| File (`.claude/context/`) | Read when |
-|---|---|
-| `selection-mode-v2-spec.md` | before touching the extension selection engine (`chromeExtension/static/module/selector-*.js`) — approved design, binding decisions |
-
 ## Stack
 - Backend: Python 3.11 + Flask (API + serves frontend build); SQLite at `data/app.db`
 - Frontend: Vue 3 + Vite 8 + Pinia + vue-router; SCSS (sass)
@@ -26,7 +21,10 @@ Chrome extension, and centralised cookie management. Backend is Python/Flask; fr
   (yt-dlp resolves through PATH/venv `Scripts`, NOT a standalone `.exe`; the old sibling
   `.ns-yt-dlp` repo fallback is gone — that repo no longer exists)
 - Bot: Discord (Python)
-- Chrome extension: `chromeExtension/` (selection export, site-nav, omnibox, redirect cleanup)
+- Chrome extension: `chromeExtension/` (selection export, site-nav, omnibox, redirect cleanup) —
+  before touching the selection engine (`chromeExtension/static/module/selector-*.js`), see
+  `docs/blueprint/entries/BP-EXT-SELECTION-1.md` (approved design, binding decisions; spec linked
+  via its `superpowers:` field at `docs/superpowers/specs/selection-mode-v2-spec.md`)
 - External repos absorbed — do NOT modify: `javascript/ns-chrome-tool`
 - **Windows:** use `python` (not `python3`)
 
