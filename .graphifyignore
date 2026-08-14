@@ -1,3 +1,10 @@
+# USER-PRIVATE - never ingest. prompt.txt is the owner's private scratch file and must
+# never enter the corpus, the graph, or the wiki. .graphifyignore REPLACES .gitignore as
+# graphify's only ignore source, so this line has to live here even when it is also a
+# .gitignore rule. (Cluster-wide rollout 2026-08-14 after several graphs were found to
+# have already ingested it.)
+/prompt.txt
+
 download/
 save/
 data/
