@@ -219,43 +219,51 @@ export const exportChatGPTConversation = () => {
     });
 }
 
-// qrcode decoder
+// qrcode / barcode decoder
+// Three distinguishable outcomes (the old version could only ever show nothing on a decoder-internal
+// failure, which looked identical to "no code in this image" — that ambiguity was the actual complaint):
+//   1. decoded successfully -> success Toast with the text + symbology
+//   2. decoder ran the full ladder and found nothing -> "not found" Toast
+//   3. the decode attempt itself threw (wasm/runtime failure) -> "error" Toast
+// decodeQrOrBarcode (static/js/QrBarcodeReader.js, injected by menu.js before this runs) implements the
+// preprocessing ladder and encodes outcomes 2 vs 3 as return-null vs throw.
 export const deQrcode = async () => {
     const image = document.clickedImage;
     const { copyTextToClipboard } = useUtils();
 
-    fetch(image.src).then(async r => {
-        const image2 = new Image();
-        image2.src = URL.createObjectURL(await r.blob());
-        // image2.crossOrigin = "Anonymous";
-        image2.onload = () => {
-            const qrcode = new QrcodeDecoder();
-            qrcode.decodeFromImage(image2).then(result => {
-                result.data && copyTextToClipboard(result.data);
-                const status = result.data ? "解析成功" : "解析失敗";
-                Toast(3000).fire(status, result.data ?? "");
-            });
-        }
-    }).catch(e => {
-        Toast(1500).fire("error", "解析失敗 :(", e);
-    });
+    let blob;
+    try {
+        const r = await fetch(image.src);
+        blob = await r.blob();
+    } catch (e) {
+        Toast(1500).fire("error", "圖片讀取失敗 :(", String(e));
+        return;
+    }
 
-    // image.crossOrigin = "Anonymous";
-    // setTimeout(()=>{
-    //     const qrcode = new QrcodeDecoder();
-    //     // console.log(image, qrcode);
-    //     try{
-    //         qrcode.decodeFromImage(image).then(result => {
-    //             // console.log(result);
-    //             result.data && copyTextToClipboard(result.data);
-    //             const status = result.data ? "解析成功" : "解析失敗";
-    //             Toast(3000).fire(status, result.data ?? "");
-    //         });
-    //     }
-    //     catch(e){
-    //         Toast(1500).fire("error", "解析失敗 :(", e);
-    //     }
-    // }, 50);
+    const image2 = new Image();
+    image2.onerror = () => {
+        Toast(1500).fire("error", "圖片載入失敗 :(", "");
+    };
+    image2.onload = async () => {
+        try {
+            const canvas = document.createElement("canvas");
+            canvas.width = image2.naturalWidth;
+            canvas.height = image2.naturalHeight;
+            canvas.getContext("2d").drawImage(image2, 0, 0);
+            const imageData = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height);
+
+            const result = await decodeQrOrBarcode(imageData);
+            if (result) {
+                copyTextToClipboard(result.text);
+                Toast(3000).fire("解析成功", `[${result.format}] ${result.text}`);
+            } else {
+                Toast(2000).fire("找不到條碼", "此圖片中未偵測到 QR code 或條碼");
+            }
+        } catch (e) {
+            Toast(1500).fire("error", "解析發生錯誤 :(", String(e?.message ?? e));
+        }
+    };
+    image2.src = URL.createObjectURL(blob);
 }
 
 export const getPixivAllImg = async (info) => {
