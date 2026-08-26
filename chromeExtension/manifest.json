@@ -137,5 +137,11 @@
         "static/module/selector.css"
       ]
     }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["static/js/zxing_reader.wasm"],
+      "matches": ["<all_urls>"]
+    }
   ]
 }

@@ -214,10 +214,11 @@ export const contextMenus = {
         documentUrlPatterns: ["https://chat.openai.com/*", "https://chatgpt.com/*"]
     },
     deQrcode: {
-        title: "解析QRcode",
+        title: "解析QRcode/條碼",
         contexts: ["image"],
         script: async (info, tab) => {
-            await injectScript(tab.id, "QrcodeDecoder.js");
+            await injectScript(tab.id, "ZxingReader.js");
+            await injectScript(tab.id, "QrBarcodeReader.js");
             await executeScript(tab.id, deQrcode, tab);
         }
     },
