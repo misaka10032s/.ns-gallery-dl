@@ -4,7 +4,7 @@ import mimetypes
 
 from flask import Flask, Response, abort, jsonify, request, send_file
 
-from app.services import gallery_service
+from app.services import doujin_service, gallery_service
 
 
 def register(app: Flask) -> None:
@@ -21,6 +21,110 @@ def register(app: Flask) -> None:
     def gallery_files():
         path = request.args.get("path", "")
         return jsonify(gallery_service.list_files(path))
+
+    # ── Doujinshi mode (本子): cover wall + book detail/edit/links ──────────
+    # Pages themselves are served through the existing /api/gallery/serve
+    # endpoint above (Range-capable, same traversal guard) — a book page is
+    # just another file under DOWNLOAD_DIR, so no new file-serving path exists.
+
+    @app.route("/api/gallery/doujin/books", methods=["GET"])
+    def doujin_books():
+        source = request.args.get("source", "")
+        books = doujin_service.list_source_books(source)
+        if books is None:
+            abort(400, description="source is not a doujinshi-mode source")
+        return jsonify(books)
+
+    @app.route("/api/gallery/doujin/book", methods=["GET"])
+    def doujin_book_detail():
+        path = request.args.get("path", "")
+        detail = doujin_service.get_book_detail(path)
+        if detail is None:
+            abort(404)
+        return jsonify(detail)
+
+    @app.route("/api/gallery/doujin/book", methods=["PUT"])
+    def doujin_book_update():
+        payload = request.get_json(silent=True) or {}
+        path = payload.get("folder_path", "")
+        if not path:
+            abort(400, description="folder_path is required")
+        try:
+            detail = doujin_service.update_book(path, payload)
+        except doujin_service.ValidationError as exc:
+            abort(400, description=str(exc))
+        if detail is None:
+            abort(404)
+        return jsonify(detail)
+
+    @app.route("/api/gallery/doujin/book/fetch-meta", methods=["POST"])
+    def doujin_book_fetch_meta():
+        payload = request.get_json(silent=True) or {}
+        path = payload.get("folder_path", "")
+        if not path:
+            abort(400, description="folder_path is required")
+        detail = doujin_service.fetch_book_metadata(path)
+        if detail is None:
+            abort(404)
+        return jsonify(detail)
+
+    @app.route("/api/gallery/doujin/book/links", methods=["POST"])
+    def doujin_link_add():
+        payload = request.get_json(silent=True) or {}
+        path = payload.get("folder_path", "")
+        if not path:
+            abort(400, description="folder_path is required")
+        try:
+            link = doujin_service.add_link(path, payload.get("label", ""), payload.get("url", ""))
+        except doujin_service.ValidationError as exc:
+            abort(400, description=str(exc))
+        except ValueError:
+            abort(409, description="this link already exists on this book")
+        if link is None:
+            abort(404)
+        return jsonify(link), 201
+
+    @app.route("/api/gallery/doujin/book/links/<int:link_id>", methods=["DELETE"])
+    def doujin_link_delete(link_id: int):
+        path = request.args.get("folder_path", "")
+        if not path:
+            abort(400, description="folder_path is required")
+        ok = doujin_service.delete_link(path, link_id)
+        if not ok:
+            abort(404)
+        return jsonify({"ok": True})
+
+    # ── 分類 (series) — controlled vocabulary, combobox backing ─────────────
+
+    @app.route("/api/gallery/doujin/series", methods=["GET"])
+    def doujin_series_search():
+        query = request.args.get("q", "")
+        return jsonify(doujin_service.search_series(query))
+
+    @app.route("/api/gallery/doujin/series", methods=["POST"])
+    def doujin_series_create():
+        payload = request.get_json(silent=True) or {}
+        name = payload.get("name", "")
+        confirm = bool(payload.get("confirm", False))
+        try:
+            result = doujin_service.resolve_or_create_series(name, confirm=confirm)
+        except doujin_service.ValidationError as exc:
+            abort(400, description=str(exc))
+        except doujin_service.NearDuplicateSeriesError as exc:
+            return jsonify({"error": "near_duplicate", "candidates": exc.candidates}), 409
+        status_code = 201 if result["status"] == "created" else 200
+        return jsonify(result), status_code
+
+    @app.route("/api/gallery/doujin/series/<int:series_id>", methods=["DELETE"])
+    def doujin_series_delete(series_id: int):
+        force = request.args.get("force", "").lower() in ("1", "true", "yes")
+        try:
+            result = doujin_service.delete_series(series_id, force=force)
+        except doujin_service.SeriesInUseError as exc:
+            return jsonify({"error": "series_in_use", "book_count": exc.book_count}), 409
+        if result is None:
+            abort(404)
+        return jsonify(result)
 
     @app.route("/api/gallery/serve", methods=["GET"])
     def gallery_serve():

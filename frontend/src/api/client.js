@@ -24,7 +24,14 @@ export async function apiRequest(path, options = {}) {
     const message =
       (payload && typeof payload === 'object' && (payload.error || payload.message)) ||
       `Request failed (${response.status})`
-    throw new Error(message)
+    const error = new Error(message)
+    // Additive — existing callers only ever read `.message`. Callers that
+    // need the structured body (e.g. the series near-duplicate 409, which
+    // carries `candidates`) can read `.status` / `.payload` instead of
+    // re-parsing the message string.
+    error.status = response.status
+    error.payload = payload
+    throw error
   }
 
   return payload
