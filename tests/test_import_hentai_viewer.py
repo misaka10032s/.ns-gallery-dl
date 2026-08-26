@@ -31,7 +31,6 @@ from app.scripts import check_hentai_viewer_import as checker
 from app.scripts import import_hentai_viewer as importer
 from app.storage.repositories import doujin_repo
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Fixture builder — a small synthetic hentaiViewer source + download tree
 # ──────────────────────────────────────────────────────────────────────────────
@@ -52,7 +51,7 @@ def _build_hv_dir(tmp_path: Path) -> Path:
     hv_dir = tmp_path / "hentaiViewer"
     (hv_dir / "thumbnail").mkdir(parents=True)
     (hv_dir / "allData.json").write_text(json.dumps(RECORDS, ensure_ascii=False), encoding="utf-8")
-    for artist, books in RECORDS.items():
+    for _artist, books in RECORDS.items():
         for code in books:
             (hv_dir / "thumbnail" / f"{code}.jpg").write_bytes(f"thumb-{code}".encode())
     (hv_dir / "thumbnail" / f"{ORPHAN_CODE}.jpg").write_bytes(b"thumb-orphan")
@@ -274,7 +273,7 @@ class TestRunImport:
             k: v for k, v in book_before.items() if k != "updated_at"
         }
         assert len(wanted_after) == len(wanted_before)
-        for before, after in zip(wanted_before, wanted_after):
+        for before, after in zip(wanted_before, wanted_after, strict=True):
             assert {k: v for k, v in after.items() if k != "updated_at"} == {
                 k: v for k, v in before.items() if k != "updated_at"
             }
@@ -329,8 +328,8 @@ class TestChecker:
         download_dir = _build_download_dir(tmp_path)
         importer.run_import(hv_dir=hv_dir, download_dir=download_dir, data_dir=tmp_path)
 
-        from app.storage.db import execute
         from app.storage import db as db_module
+        from app.storage.db import execute
 
         # simulate a broken import: delete the row for the matched N100001 book
         execute(

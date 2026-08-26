@@ -171,7 +171,7 @@ def set_import_fields(
         fields["artist_fetched"] = artist_fetched
 
     set_clause = ", ".join(f"{col} = ?" for col in fields)
-    params = tuple(fields.values()) + (_now(), folder_path)
+    params = (*tuple(fields.values()), _now(), folder_path)
     execute(
         f"UPDATE doujin_books SET {set_clause}, updated_at = ? WHERE folder_path = ?",
         params,
