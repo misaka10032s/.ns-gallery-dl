@@ -128,6 +128,10 @@ plus `frontend/tmp/` reserved for scratch scripts) can never become a gate input
 
 `l0` = G1+G2+G3+G4 (~8s on the untouched tree). `l1` = l0+G5 (~15s).
 
+**A baseline measured in a worktree goes stale if the merge target moves.** Regenerate it
+against the merge target (`main`) immediately before merging, not at branch-cut time — a
+baseline is a snapshot of a moving tree, not a fixed spec.
+
 **G4 vacuous-gate finding (fixed):** before this install, `app/api`, `app/config`, `app/domain`,
 `app/providers`, `app/services`, `app/storage` (and 5 `app/providers/*` subpackages) had NO
 `__init__.py` — implicit PEP 420 namespace packages. import-linter's analysis engine (grimp
