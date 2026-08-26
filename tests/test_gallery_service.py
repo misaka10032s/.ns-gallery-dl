@@ -72,17 +72,69 @@ class TestListCategories:
         assert gallery_service.list_categories() == []
 
     def test_returns_category_names(self, tmp_download_dir: Path):
-        (tmp_download_dir / "discord").mkdir()
-        (tmp_download_dir / "pixiv").mkdir()
+        discord = tmp_download_dir / "discord"
+        discord.mkdir()
+        (discord / "video.mp4").write_bytes(b"v")
+        pixiv = tmp_download_dir / "pixiv"
+        pixiv.mkdir()
+        (pixiv / "artist" / "work").mkdir(parents=True)
+        (pixiv / "artist" / "work" / "1.jpg").write_bytes(b"i")
         cats = gallery_service.list_categories()
         names = [c["name"] for c in cats]
         assert "discord" in names
         assert "pixiv" in names
 
     def test_hidden_dirs_excluded(self, tmp_download_dir: Path):
-        (tmp_download_dir / ".hidden").mkdir()
+        hidden = tmp_download_dir / ".hidden"
+        hidden.mkdir()
+        (hidden / "file.jpg").write_bytes(b"x")  # would count if not hidden-filtered
         cats = gallery_service.list_categories()
         assert all(c["name"] != ".hidden" for c in cats)
+
+    def test_empty_category_is_filtered_out(self, tmp_download_dir: Path):
+        """使用者要求：空資料夾不用刪，但顯示要過濾 0 的 —— 一律用 item_count == 0
+        判斷，不新增任何額外掃描（見 gallery_service.list_categories docstring）。"""
+        (tmp_download_dir / "nhentai.net").mkdir()  # real leftover example
+        (tmp_download_dir / "youtube").mkdir()
+        cats = gallery_service.list_categories()
+        names = [c["name"] for c in cats]
+        assert "nhentai.net" not in names
+        assert "youtube" not in names
+        # the folders themselves must still exist on disk — never deleted
+        assert (tmp_download_dir / "nhentai.net").is_dir()
+        assert (tmp_download_dir / "youtube").is_dir()
+
+    def test_category_with_items_is_shown_alongside_empty_ones(self, tmp_download_dir: Path):
+        (tmp_download_dir / "empty_leftover").mkdir()
+        real = tmp_download_dir / "bahamut"
+        real.mkdir()
+        (real / "clip.mp4").write_bytes(b"v")
+        cats = gallery_service.list_categories()
+        names = [c["name"] for c in cats]
+        assert "bahamut" in names
+        assert "empty_leftover" not in names
+
+    def test_doujinshi_category_item_count_is_direct_subfolder_count(self, tmp_download_dir: Path):
+        """Root-cause regression: item_count for a doujinshi source must be
+        "one subfolder = one book" — the SAME definition list_source_books
+        uses — not the general-mode leaf-recursion count, even when a book
+        folder itself contains a nested subfolder (which the leaf-recursion
+        definition would silently exclude or split apart)."""
+        wnacg = tmp_download_dir / "wnacg"
+        wnacg.mkdir()
+        flat_book = wnacg / "100_flat_book"
+        flat_book.mkdir()
+        (flat_book / "001.jpg").write_bytes(b"i")
+        nested_book = wnacg / "200_book_with_bonus_subfolder"
+        nested_book.mkdir()
+        (nested_book / "001.jpg").write_bytes(b"i")
+        (nested_book / "bonus").mkdir()
+        (nested_book / "bonus" / "extra.jpg").write_bytes(b"i")
+
+        cats = gallery_service.list_categories()
+        wnacg_cat = next(c for c in cats if c["name"] == "wnacg")
+        assert wnacg_cat["item_count"] == 2
+        assert wnacg_cat["mode"] == "doujinshi"
 
 
 class TestListItems:

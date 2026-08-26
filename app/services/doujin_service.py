@@ -188,6 +188,15 @@ def list_source_books(source: str) -> list[dict] | None:
         artist, _ = _resolve_field(db_row, "artist", "")
         circle, _ = _resolve_field(db_row, "circle", "")
         cover = _cover_for(pages, db_row)
+        # Free — meta_fetch_status is already in db_row from the ONE bulk
+        # query above, no extra I/O. Collapsed to a bool (see
+        # doujin_meta_service.ATTENTION_FETCH_STATUSES) rather than exposing
+        # the raw status: the cover wall only needs "does this book need a
+        # look", not the full status vocabulary — that detail stays in the
+        # edit panel (get_book_detail's meta_fetch_status).
+        needs_fetch_attention = (
+            (db_row or {}).get("meta_fetch_status") in doujin_meta_service.ATTENTION_FETCH_STATUSES
+        )
         books.append(
             {
                 "folder_path": folder_path,
@@ -199,6 +208,7 @@ def list_source_books(source: str) -> list[dict] | None:
                 "purchase_state": (db_row or {}).get("purchase_state") or DEFAULT_PURCHASE_STATE,
                 "page_count": _effective_page_count(db_row, len(pages)),
                 "cover": f"{folder_path}/{cover}" if cover else None,
+                "needs_fetch_attention": needs_fetch_attention,
             }
         )
     return books

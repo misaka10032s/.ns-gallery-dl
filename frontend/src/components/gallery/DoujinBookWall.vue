@@ -5,8 +5,10 @@ import { fetchDoujinBooks } from '../../api/gallery'
 import DoujinBookEditPanel from './DoujinBookEditPanel.vue'
 import DoujinBookReader from './DoujinBookReader.vue'
 
-// Doujinshi (本子) mode: cover wall for one source (wnacg / nhentai / 18comic
-// / exhentai — whichever app.config.gallery_modes.DOUJINSHI_SOURCES lists).
+// Doujinshi (本子) mode: cover wall for one source (whichever
+// app.config.gallery_modes.DOUJINSHI_SOURCES lists — wnacg/nhentai/18comic
+// today; exhentai was tried then removed 2026-08-26, it needs a
+// site-specific cookie just to view a gallery at all).
 // One subfolder = one book; clicking a cover opens the page-by-page reader,
 // the ✎ button opens the edit panel for that book's own fields + links.
 const props = defineProps({
@@ -24,6 +26,14 @@ const purchaseLabel = {
   purchased: '已購',
   not_purchased: '未購',
 }
+
+// Mirrors app.services.doujin_meta_service.ATTENTION_FETCH_STATUSES — that
+// module is the source of truth for WHICH statuses count as "needs a look";
+// the list endpoint already collapses it to `needs_fetch_attention` for the
+// initial load (free — computed from data the bulk query already has), this
+// local copy only exists to recompute the SAME thing client-side right
+// after an edit-panel fetch, without a second round-trip to the list API.
+const ATTENTION_STATUSES = new Set(['blocked', 'not_found', 'network_error'])
 
 const filteredBooks = computed(() => {
   const kw = search.value.trim().toLowerCase()
@@ -69,6 +79,7 @@ function onBookUpdated(updated) {
       purchase_state: updated.purchase_state,
       page_count: updated.page_count,
       cover: updated.cover,
+      needs_fetch_attention: ATTENTION_STATUSES.has(updated.meta_fetch_status),
     }
   }
 }
@@ -106,6 +117,11 @@ watch(() => props.category?.path, loadBooks, { immediate: true })
           >
             {{ purchaseLabel[book.purchase_state] ?? book.purchase_state }}
           </span>
+          <span
+            v-if="book.needs_fetch_attention"
+            class="book-card__attention"
+            title="站點資料抓取失敗，需要重試"
+          >⚠</span>
         </button>
         <div class="book-card__label">
           <span class="book-card__title">{{ book.title }}</span>
@@ -224,6 +240,22 @@ watch(() => props.category?.path, loadBooks, { immediate: true })
   &--owned {
     background: $blue-600;
   }
+}
+
+.book-card__attention {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  width: 1.35rem;
+  height: 1.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 0.78rem;
+  line-height: 1;
 }
 
 .book-card__label {

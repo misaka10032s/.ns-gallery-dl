@@ -16,17 +16,24 @@ exec_links:
   - app/config/gallery_modes.py
   - app/services/doujin_service.py
   - app/services/doujin_meta_service.py
+  - app/services/gallery_service.py
+  - app/services/path_service.py
   - app/providers/sites/nhentai.py
   - app/storage/repositories/doujin_repo.py
   - app/storage/db.py
   - app/api/routes/gallery.py
   - tests/test_doujin_service.py
+  - tests/test_gallery_service.py
+  - tests/test_path_service.py
 depends_on:
   - BP-SVC-GALLERY-1
-origin: "首次入庫於本次 block 1 開發（2026-08-26，worktree feat/doujin-view）；同日兩輪
+origin: "首次入庫於本次 block 1 開發（2026-08-26，worktree feat/doujin-view）；同日三輪
   使用者追加決議（同一輪討論，未開新 entry）：(1) 移除彩頁欄位、分類改控制詞彙表 dropdown；
   (2) 名稱/作者/社團的自動偵測來源從『解析資料夾名稱』改為『站點 metadata 抓取』——資料夾
-  名稱是有損渲染，不是真相來源（使用者原話：「不要用標題分析 因為那部一定有完整資訊」）。"
+  名稱是有損渲染，不是真相來源（使用者原話：「不要用標題分析 因為那部一定有完整資訊」）；
+  (3) 驗收發現同一個問題有三個不同答案（wnacg 513/522/519）——根因排除、移除 exhentai
+  （「exhentai 不用 他要專門的cookie才能瀏覽」）、空來源過濾（「空資料夾不用刪 但是顯是要
+  過濾0的」）、補 threads.com/bilibili.com 別名。"
 ---
 
 ## 設計說明
@@ -162,14 +169,46 @@ DB），優先序：`*_override`（手動編輯，永遠贏）> `*_fetched`（�
 `page_count_override` 設定時整個蓋過推導值（`_effective_page_count`）；清掉的方式是把
 `page_count_override` 顯式傳 `null`。
 
-### 效能：wnacg 512 本、55725 個檔案
+### 效能：wnacg 522 本、55725 個檔案
 
 `list_source_books()` **完全不寫 DB**（純瀏覽不會觸發惰性建立風暴），且用**一次**
 `doujin_repo.get_books(folder_paths)` 批次查所有既有列（`WHERE folder_path IN (...)`），
-而不是每本書各查一次。實測（見下方測試段落）：wnacg 全量 522 個書籍資料夾（含子目錄，比
-`list_categories()` 算出的 513 個「葉節點」略多——`list_categories` 用的是既有
-`_folder_has_only_files` 葉節點定義，`doujin_service` 用的是「本子來源正下一層的每個
-資料夾都是一本書」，兩者對非扁平資料夾的認定本來就不同，不是 bug）耗時 **0.165 秒**。
+而不是每本書各查一次。實測：wnacg 全量 522 個書籍資料夾耗時 **0.165 秒**。
+
+### 誤判記錄——「513 vs 522 不是 bug」這句話錯了，已修正（2026-08-26 驗收發現）
+
+上一版本條目寫著「兩者對非扁平資料夾的認定本來就不同，不是 bug」——**這句話是錯的**，
+是本次驗收（真的去點畫面）才抓出來的：使用者同時看到三個不同數字（來源選單徽章 513、
+封面牆標題「522 本」、驗收工具自己 shell 出來的「519」），同一個問題不該有三個答案。
+
+**三個數字各自在算什麼，逐一查清楚**：
+
+- **513** —— 舊版 `gallery_service.list_categories()` 用 `_iter_leaf_items()`（既有的
+  「葉節點」遞迴邏輯，設計給 pixiv 這種「來源/作者資料夾/相簿」多層結構用）算 `item_count`。
+  它的葉節點定義是「該資料夾**只含檔案、不含任何子目錄**」；wnacg 底下若一本書的資料夾裡
+  自己還帶了個子資料夾（例如附贈內容另外開一個小資料夾），`_folder_has_only_files()` 就會
+  判它「不是葉節點」，改成遞迴往下找——那本書因此在計數裡消失或被拆成別的東西，不會被算成
+  一本。這是真正的**低估**，不是「另一種合理定義」。
+- **522** —— `doujin_service.list_source_books()`（封面牆本體）與新版 `list_categories()`
+  現在共用同一套邏輯（`gallery_service._count_immediate_subdirs()`）：wnacg 資料夾正下面
+  有幾個子目錄，就是幾本書，句點，不管子目錄裡面長什麼樣。**這是唯一正確的定義**——直接對應
+  這個功能的規格「一個子資料夾＝一本書」，也是使用者實際在螢幕上數到的數字。
+- **519** —— 這個數字**不是任何程式邏輯算出來的**，是這次驗收拿 Git Bash 的 `find`/`ls`
+  之類工具在 Windows 上跑，遇到 3 個含特殊字元的日文/中文檔名（例如
+  `115110_[山桜汉化] (こみトレ35) [ココアホリック...`）時 MSYS2 的路徑編碼處理失敗
+  （`find: '...': No such file or directory`，實際上該資料夾存在，是工具讀不到，不是
+  資料夾真的少了 3 個），因此少算了 3 個。**這是驗收工具本身的編碼瑕疵，不是這個功能的
+  程式碼路徑產生的數字**，用 Python `os.scandir`（Windows 寬字元 API，不受這個問題影響）
+  重新算，跟 522 完全一致。
+
+**修正**：`gallery_service.list_categories()` 對本子模式來源不再呼叫 `_iter_leaf_items()`，
+改成跟 `list_source_books()` 完全同一個 `_count_immediate_subdirs()` 函式——**現在只有一個
+計數定義、一條程式碼路徑**，一般模式來源（pixiv 等）維持原本 `_iter_leaf_items()` 不變。
+副作用是 wnacg/nhentai 這兩個本子來源的 `item_count` 計算反而**變快**（不用逐本書
+`_first_preview`/`file_count`），整體 `list_categories()` 從 16.4 秒降到 9.6～10.9 秒
+（同一支程式、同一批真實資料，前後端對端量測，見下方測試段落）——目前剩下的時間全部是
+pixiv（81,040 個檔案）+ kemono.partyfanbox（19,978 個檔案）等一般模式來源既有的
+`_iter_leaf_items()` 遞迴掃描，這次沒有動，也不在題目範圍內。
 
 ### API（延伸既有 `/api/gallery/*`，沒有另開一套）
 
@@ -199,25 +238,74 @@ DB），優先序：`*_override`（手動編輯，永遠贏）> `*_fetched`（�
 因此只有兩個值：`not_purchased`（未購，預設）、`purchased`（已購）；block 2 引入 wishlist
 後才需要第三態。
 
+### exhentai 移除（2026-08-26 驗收後決議，不是我自己決定的）
+
+使用者原話：「exhentai 不用 他要專門的cookie才能瀏覽」——不只是抓取要 cookie，**連瀏覽
+本體都要專用 cookie**，加上這個庫裡目前只有一本 exhentai 書，不值得為它扛這個複雜度。
+`app/config/gallery_modes.DOUJINSHI_SOURCES` 移除 `"exhentai"`，`resolve_mode()` 因此
+自動把它歸回 general 模式——不需要在任何其他檔案另外處理，它照樣能在一般縮圖牆瀏覽（單一
+相簿），只是不再有封面牆/逐頁閱讀器/欄位編輯那一套。`app/services/doujin_meta_service.py`
+先前替它保留的「需要 gid+token」註解已更新，反映「已從本子來源移除，不只是抓取器沒接」。
+
+### 空來源過濾（2026-08-26，「空資料夾不用刪 但是顯是要過濾0的」）
+
+`gallery_service.list_categories()` 現在會跳過 `item_count == 0` 的來源，**不刪除**
+底下的資料夾——`download/bilibili.com`、`minecraft`、`threads.com`、`youtube` 這四個
+目前真實存在、確認 0 個檔案的殘留資料夾，驗證後仍原封不動留在磁碟上，只是不再出現在
+`/api/gallery` 回應裡。**成本是零**：`item_count` 本來就要為每個來源算一次（不管本子還是
+一般模式），這裡只是算完之後多一個 `if item_count == 0: continue`，沒有新增任何額外掃描
+——真正的效能改善其實來自上面「513 vs 522」那個 bug 修正本身（本子來源改用更便宜的計數
+方式），不是這個過濾動作。
+
+### 兩筆網域別名補齊（`app/services/path_service.py`，`CATEGORY_ALIASES`）
+
+使用者原話：「threads.com/bilibili.com = threads/bilibili」——新增
+`"threads.com": "threads"`、`"bilibili.com": "bilibili"`。這只影響**未來**下載會落在
+哪個資料夾（`path_service.storage_category()` 是下載時決定儲存路徑用的），**不會**、
+也**沒有**搬動或刪除既有的 `download/threads.com/`、`download/bilibili.com/`——那兩個
+資料夾目前是空的，補上別名後它們會因為上面「空來源過濾」自然從清單消失，不是因為被搬走。
+
+### 封面牆的抓取狀態指示（驗收提出的開放問題，這次自己決定並說明理由）
+
+驗收發現：一本書的 metadata 抓取狀態（從沒抓過／被擋／找不到／網路錯誤）目前只有打開
+編輯面板才看得到，幾百本書排在牆上完全看不出哪些需要處理。**決定**：`list_source_books()`
+（封面牆資料源）多回傳一個 `needs_fetch_attention`（布林值）——**完全不花額外成本**：
+`meta_fetch_status` 本來就在那一次 `doujin_repo.get_books()` 批次查詢裡，只是原本沒有
+透出去。只有三種狀態算「需要注意」：`blocked`／`not_found`／`network_error`
+（`doujin_meta_service.ATTENTION_FETCH_STATUSES`）——**刻意排除**「從沒抓過」（大多數
+書都是這狀態，全部標記等於沒有訊號，只有噪音）跟 `no_gallery_id`／`unsupported_source`
+（這兩種是來源/資料夾本身的性質，重試永遠不會變，標了也沒用，只會讓使用者白按）。前端
+`DoujinBookWall.vue` 顯示一個小的 ⚠ 徽章。
+
 ### 刻意沒做（block 1 範圍外，見 dispatch brief 的 Scope 段）
 
 - Wishlist / 未下載書籍（沒有磁碟資料夾的紀錄）——block 2。
 - 匯入舊 hentaiViewer 的 `allData.json`——block 2。
 - 圖片標籤 / LLM / WD14——不同專案。
 - 全庫搜尋、全庫掃描或雜湊——未做。
-- 沒有動 general 模式任何程式碼路徑（`gallery_service.list_items/list_files` 邏輯不變，
-  只有 `list_categories()` 多了 `mode` 欄位）。
+- 沒有動 general 模式來源本身的 item_count 演算法（`_iter_leaf_items` 邏輯不變，只有
+  doujinshi 模式改用更便宜的直屬子目錄計數，見上）；`gallery_service.list_items/
+  list_files` 邏輯完全不變。
+- exhentai 的抓取器／瀏覽 cookie 需求——已從範圍移除，不是延後。
 
 ### 測試
 
-`tests/test_doujin_service.py`（40 案例，隨 `tests/` 全量 143 案例一起跑，
-`py -3.11 -m pytest -q` 全綠）覆蓋：`resolve_mode` 設定驅動解析、`natural_sort_key`
-（`"10.jpg"` 不會排在 `"2.jpg"` 前面，含數字/文字混合檔名不 raise）、`resolve_book_dir`
-的逃逸防護（`../`、絕對路徑、非本子來源、非直屬子目錄一律拒絕）、封面牆的頁數推導與
-「純瀏覽不寫 DB」、書籍詳情/更新的讀寫往返、`purchase_state`/`cover_page`/
-`page_count_override` 的欄位驗證、連結新增/刪除（含重複連結拒絕、跨書刪除拒絕）。
-另外對真實 `download/wnacg`（522 本、55725 個檔案，全程唯讀，`DOWNLOAD_DIR` 用環境變數
-指到真實路徑、`DATA_DIR` 指到 `data/app.db` 的私有拷貝，never the live 7601 db）跑了
-一次端到端 API 驗證：列表、開詳情、改欄位、加兩筆連結、刪一筆、重複連結 409、路徑穿越 404、
-非本子來源 400——全部行為正確；驗證完畢後 `data/app.db` MD5 校驗與驗證前完全一致，
-`download/` 底下取樣檔案 mtime/size 未變。
+`tests/test_doujin_service.py` + `tests/test_gallery_service.py` + 新增的
+`tests/test_path_service.py`，`py -3.11 -m pytest -q` 全綠，**197 案例**（`tests/`
+全量）。本輪新增/修正涵蓋：`resolve_mode` 對 exhentai 移除後仍正確解析（wnacg/nhentai/
+18comic 仍是 doujinshi，exhentai 現在跟其他一般來源一起走 general）、
+`_count_immediate_subdirs`（doujinshi 來源 item_count＝「一子資料夾一本書」，含一本書
+資料夾本身帶子目錄的情境）、空來源過濾（含「有內容的來源在有空來源同時存在時仍正常顯示」）、
+`needs_fetch_attention` 的三種正向/負向情境（從沒抓過＝false、`ok`＝false、
+`blocked`/`not_found`/`network_error`＝true、`no_gallery_id`＝false）、
+`path_service` 兩筆新別名 + 既有幾筆回歸樣本。
+
+另外對真實 `download/`（全程唯讀，`DOWNLOAD_DIR` 用環境變數指到真實路徑、`DATA_DIR`
+指到 `data/app.db` 的私有拷貝，never the live 7601 db）做了新舊版本 `list_categories()`
+的前後對比量測（同一支解譯器行程內背靠背跑，排除快取差異）：舊版 16.4 秒／20 個分類
+（含 4 個空的殘留來源、wnacg 算出 513）；新版 9.6～10.9 秒／16 個分類（4 個空來源已過濾、
+wnacg 算出 522、exhentai 變成 general 模式）——**新版反而更快**，因為本子來源不再跑
+`_iter_leaf_items` 那套逐本書掃描。剩下的時間全部是 pixiv（81,040 檔案）等一般模式來源
+既有的遞迴掃描，這次沒有動。驗證完畢後 `data/app.db` MD5 與驗證前完全一致，
+`download/` 底下四個空殘留資料夾（`bilibili.com`/`minecraft`/`threads.com`/`youtube`）
+逐一確認仍存在於磁碟上。

@@ -9,12 +9,14 @@ from app.config.settings import normalize_domain
 from app.domain.enums import Provider
 
 CATEGORY_ALIASES = {
+    "bilibili.com": "bilibili",
     "facebook.com": "facebook",
     "fb.watch": "facebook",
     "forum.gamer.com.tw": "bahamut",
     "gamer.com.tw": "bahamut",
     "nhentai.net": "nhentai",
     "pixiv.net": "pixiv",
+    "threads.com": "threads",
     "twitter.com": "x",
     "x.com": "x",
     "youtube.com": "youtube",

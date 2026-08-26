@@ -13,11 +13,12 @@ from app.storage.repositories import cookies_repo
 # ──────────────────────────────────────────────────────────────────────────────
 # Gallery id extraction — reading an IDENTIFIER off the folder name, not
 # interpreting the title. Real folder names put it as a leading run of
-# digits separated by "_" or a space ("100873_[...]", "121697 [...]").
-# exhentai folders observed in this library carry NO such prefix at all —
-# see get_gallery_id_coverage(); there is deliberately no fallback (e.g. a
-# title search) for that case. The user rejected using the title for
-# anything, so "no id" means "no id", not "guess one".
+# digits separated by "_" or a space ("100873_[...]", "121697 [...]"). A
+# folder without that prefix (observed e.g. on exhentai — now removed from
+# DOUJINSHI_SOURCES entirely, see app.config.gallery_modes) simply has no
+# id; there is deliberately no fallback (e.g. a title search) for that
+# case. The user rejected using the title for anything, so "no id" means
+# "no id", not "guess one".
 # ──────────────────────────────────────────────────────────────────────────────
 
 _GALLERY_ID_RE = re.compile(r"^(\d+)[_ ]")
@@ -42,14 +43,30 @@ FETCH_STATUS_NETWORK_ERROR = "network_error"
 FETCH_STATUS_NO_GALLERY_ID = "no_gallery_id"
 FETCH_STATUS_UNSUPPORTED = "unsupported_source"
 
+# Which fetch outcomes are worth a cover-wall indicator (see
+# doujin_service.list_source_books). "ok" and "never fetched at all"
+# (meta_fetch_status is NULL — most books, by far, since fetch is opt-in
+# per book) are deliberately NOT in here: flagging either would put a badge
+# on nearly every card, which is noise, not signal. no_gallery_id /
+# unsupported_source aren't included either — those are properties of the
+# SOURCE, not something a re-fetch could ever fix, so a per-book nag icon
+# would be pointless; blocked/not_found/network_error are the three a user
+# can actually act on (retry now, or later once unblocked).
+ATTENTION_FETCH_STATUSES: frozenset[str] = frozenset(
+    {FETCH_STATUS_BLOCKED, FETCH_STATUS_NOT_FOUND, FETCH_STATUS_NETWORK_ERROR}
+)
+
 # Which doujinshi sources currently have a working metadata fetcher, and
 # their cookie-lookup domain (app.storage.repositories.cookies_repo keys
 # cookies by domain — this reuses whatever cookie the user has already
 # registered for that domain via the existing cookie scan/UI, never a
 # hardcoded credential).
 #
-# Only "nhentai" is wired up. Why the other three are not (checked live,
-# 2026-08-26 — not guessed):
+# Only "nhentai" is wired up. Why the other two remaining doujinshi sources
+# are not (checked live, 2026-08-26 — not guessed; exhentai was a third
+# candidate here but was removed from DOUJINSHI_SOURCES entirely — see
+# app.config.gallery_modes — so it is no longer even considered for a
+# fetcher):
 #   - wnacg: its gallery page's own <title> is the SAME bracket-wrapped
 #     string as the folder name ("[circle (artist)] title (parody) [tags]"),
 #     with no separate structured artist/circle field. Fetching it would
@@ -59,9 +76,6 @@ FETCH_STATUS_UNSUPPORTED = "unsupported_source"
 #   - 18comic: no existing provider module in this repo (app/providers/sites/
 #     has no 18comic.py) and the site is known to gate behind additional
 #     anti-bot/mobile-API requirements — out of scope for this pass.
-#   - exhentai: needs a gid+token PAIR to fetch a gallery, not a bare numeric
-#     id, and (see get_gallery_id_coverage) its folders in this library
-#     carry no id prefix at all — nothing to fetch even if a client existed.
 _COOKIE_DOMAIN_BY_SOURCE = {
     "nhentai": "nhentai.net",
 }

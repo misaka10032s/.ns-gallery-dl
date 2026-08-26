@@ -24,13 +24,21 @@ from app.services import doujin_meta_service, doujin_service
 
 
 class TestResolveMode:
-    @pytest.mark.parametrize("source", ["wnacg", "nhentai", "18comic", "exhentai"])
+    @pytest.mark.parametrize("source", ["wnacg", "nhentai", "18comic"])
     def test_doujinshi_sources(self, source):
         assert resolve_mode(source) == MODE_DOUJINSHI
 
     @pytest.mark.parametrize(
         "source",
-        ["pixiv", "bahamut", "yandere", "facebook", "twitter", "discord", "gelbooru", "kemono.partyfanbox", "x", "some-future-site"],
+        [
+            "pixiv", "bahamut", "yandere", "facebook", "twitter", "discord", "gelbooru",
+            "kemono.partyfanbox", "x", "some-future-site",
+            # exhentai was removed from DOUJINSHI_SOURCES 2026-08-26 (needs a
+            # site-specific cookie just to view a gallery) — it must resolve
+            # to general mode like any other unconfigured source, and this
+            # removal must not disturb the three that remain (asserted above).
+            "exhentai",
+        ],
     )
     def test_general_sources(self, source):
         assert resolve_mode(source) == MODE_GENERAL
@@ -119,6 +127,53 @@ class TestListSourceBooks:
 
         doujin_service.list_source_books("wnacg")
         assert doujin_repo.get_book("wnacg/book_b") is None
+
+    def test_needs_fetch_attention_false_when_never_fetched(self, tmp_doujin_download_dir, tmp_db):
+        book = tmp_doujin_download_dir / "wnacg" / "book_never_fetched"
+        book.mkdir(parents=True)
+        (book / "001.png").write_bytes(b"x")
+        books = doujin_service.list_source_books("wnacg")
+        assert books[0]["needs_fetch_attention"] is False
+
+    def test_needs_fetch_attention_false_after_ok_fetch(self, tmp_doujin_download_dir, tmp_db, monkeypatch):
+        book = tmp_doujin_download_dir / "wnacg" / "12345_book_ok"
+        book.mkdir(parents=True)
+        (book / "001.png").write_bytes(b"x")
+        monkeypatch.setattr(
+            doujin_service.doujin_meta_service,
+            "fetch_metadata",
+            lambda source, gid: {"status": "ok", "title": "t", "artist": "", "circle": "", "page_count": 1, "source_url": "u"},
+        )
+        doujin_service.fetch_book_metadata("wnacg/12345_book_ok")
+        books = doujin_service.list_source_books("wnacg")
+        assert books[0]["needs_fetch_attention"] is False
+
+    @pytest.mark.parametrize("status", ["blocked", "not_found", "network_error"])
+    def test_needs_fetch_attention_true_for_actionable_failures(
+        self, tmp_doujin_download_dir, tmp_db, monkeypatch, status
+    ):
+        book = tmp_doujin_download_dir / "wnacg" / "12345_book_fail"
+        book.mkdir(parents=True)
+        (book / "001.png").write_bytes(b"x")
+        monkeypatch.setattr(
+            doujin_service.doujin_meta_service, "fetch_metadata", lambda source, gid: {"status": status}
+        )
+        doujin_service.fetch_book_metadata("wnacg/12345_book_fail")
+        books = doujin_service.list_source_books("wnacg")
+        assert books[0]["needs_fetch_attention"] is True
+
+    def test_needs_fetch_attention_false_for_non_actionable_statuses(
+        self, tmp_doujin_download_dir, tmp_db
+    ):
+        # no_gallery_id (folder has no leading numeric id) is a property of
+        # the source/folder, not something a retry could ever fix — must not
+        # be flagged.
+        book = tmp_doujin_download_dir / "wnacg" / "[no id here] book"
+        book.mkdir(parents=True)
+        (book / "001.png").write_bytes(b"x")
+        doujin_service.fetch_book_metadata("wnacg/[no id here] book")
+        books = doujin_service.list_source_books("wnacg")
+        assert books[0]["needs_fetch_attention"] is False
 
 
 # ──────────────────────────────────────────────────────────

@@ -8,10 +8,13 @@ import GeneralGalleryPanel from '../components/gallery/GeneralGalleryPanel.vue'
 // Media library. `mode` on each category (from app.config.gallery_modes via
 // GET /api/gallery) decides which panel renders — this view no longer needs
 // its own copy of "which sources are doujinshi": doujinshi mode (wnacg /
-// nhentai / 18comic / exhentai) gets a cover-wall + page reader
-// (DoujinBookWall), everything else keeps the pre-existing thumbnail wall
-// (GeneralGalleryPanel, unchanged behavior — only relocated out of this file
-// so a second full mode didn't grow this view toward a thousand lines).
+// nhentai / 18comic) gets a cover-wall + page reader (DoujinBookWall),
+// everything else — including exhentai, which needs a site-specific cookie
+// just to view and was deliberately dropped from doujinshi mode 2026-08-26
+// — keeps the pre-existing thumbnail wall (GeneralGalleryPanel, unchanged
+// behavior — only relocated out of this file so a second full mode didn't
+// grow this view toward a thousand lines). Categories with zero items
+// (empty leftover folders) are already filtered out server-side.
 const categories = ref([])
 const selectedCategory = ref(null)
 const loadingCats = ref(false)
