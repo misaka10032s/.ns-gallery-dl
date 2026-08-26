@@ -4,7 +4,7 @@ import mimetypes
 
 from flask import Flask, Response, abort, jsonify, request, send_file
 
-from app.services import gallery_service
+from app.services import doujin_service, gallery_service
 
 
 def register(app: Flask) -> None:
@@ -21,6 +21,67 @@ def register(app: Flask) -> None:
     def gallery_files():
         path = request.args.get("path", "")
         return jsonify(gallery_service.list_files(path))
+
+    # ── Doujinshi mode (本子): cover wall + book detail/edit/links ──────────
+    # Pages themselves are served through the existing /api/gallery/serve
+    # endpoint above (Range-capable, same traversal guard) — a book page is
+    # just another file under DOWNLOAD_DIR, so no new file-serving path exists.
+
+    @app.route("/api/gallery/doujin/books", methods=["GET"])
+    def doujin_books():
+        source = request.args.get("source", "")
+        books = doujin_service.list_source_books(source)
+        if books is None:
+            abort(400, description="source is not a doujinshi-mode source")
+        return jsonify(books)
+
+    @app.route("/api/gallery/doujin/book", methods=["GET"])
+    def doujin_book_detail():
+        path = request.args.get("path", "")
+        detail = doujin_service.get_book_detail(path)
+        if detail is None:
+            abort(404)
+        return jsonify(detail)
+
+    @app.route("/api/gallery/doujin/book", methods=["PUT"])
+    def doujin_book_update():
+        payload = request.get_json(silent=True) or {}
+        path = payload.get("folder_path", "")
+        if not path:
+            abort(400, description="folder_path is required")
+        try:
+            detail = doujin_service.update_book(path, payload)
+        except doujin_service.ValidationError as exc:
+            abort(400, description=str(exc))
+        if detail is None:
+            abort(404)
+        return jsonify(detail)
+
+    @app.route("/api/gallery/doujin/book/links", methods=["POST"])
+    def doujin_link_add():
+        payload = request.get_json(silent=True) or {}
+        path = payload.get("folder_path", "")
+        if not path:
+            abort(400, description="folder_path is required")
+        try:
+            link = doujin_service.add_link(path, payload.get("label", ""), payload.get("url", ""))
+        except doujin_service.ValidationError as exc:
+            abort(400, description=str(exc))
+        except ValueError:
+            abort(409, description="this link already exists on this book")
+        if link is None:
+            abort(404)
+        return jsonify(link), 201
+
+    @app.route("/api/gallery/doujin/book/links/<int:link_id>", methods=["DELETE"])
+    def doujin_link_delete(link_id: int):
+        path = request.args.get("folder_path", "")
+        if not path:
+            abort(400, description="folder_path is required")
+        ok = doujin_service.delete_link(path, link_id)
+        if not ok:
+            abort(404)
+        return jsonify({"ok": True})
 
     @app.route("/api/gallery/serve", methods=["GET"])
     def gallery_serve():

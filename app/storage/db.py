@@ -21,6 +21,11 @@ def _connect() -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     # WAL 模式允許讀寫並發，避免多執行緒下的 "database is locked" 錯誤
     conn.execute("PRAGMA journal_mode=WAL")
+    # WAL alone does not make a second writer wait — without a busy timeout, two
+    # connections colliding on the same write instant raise "database is locked"
+    # immediately instead of one waiting briefly for the other. 5s is generous for
+    # this app's short, single-row writes.
+    conn.execute("PRAGMA busy_timeout = 5000")
     return conn
 
 
@@ -123,10 +128,52 @@ def init_db() -> None:
                     last_checked_at TEXT DEFAULT ''
                 );
 
+                -- Doujinshi (本子) book metadata — one row per book FOLDER (path
+                -- relative to DOWNLOAD_DIR, e.g. "wnacg/100873_[...] さなえの湯(泡)").
+                -- Rows are created LAZILY: a folder under a doujinshi-mode source
+                -- (app.config.gallery_modes) is a book whether or not the user has
+                -- ever touched it — no pre-scan populates this table up front.
+                -- page_count is a cache of the on-disk page count, refreshed every
+                -- time the row is touched; page_count_override, when set (NOT
+                -- NULL), wins over it for display. cover_page is the filename of
+                -- the user-chosen cover page within the folder; '' means "auto —
+                -- use the first page in natural order".
+                CREATE TABLE IF NOT EXISTS doujin_books (
+                    folder_path TEXT PRIMARY KEY,
+                    title TEXT DEFAULT '',
+                    artist TEXT DEFAULT '',
+                    circle TEXT DEFAULT '',
+                    size_label TEXT DEFAULT '',
+                    color_pages TEXT DEFAULT '',
+                    series TEXT DEFAULT '',
+                    purchase_state TEXT NOT NULL DEFAULT 'not_purchased',
+                    page_count INTEGER NOT NULL DEFAULT 0,
+                    page_count_override INTEGER,
+                    cover_page TEXT DEFAULT '',
+                    last_page_index INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                -- Plural links per book (N網/P網/購買網...). folder_path is not
+                -- enforced as a hard FK (no PRAGMA foreign_keys — matches the rest
+                -- of this schema) because a link can be added the same lazy way a
+                -- book row is created; the service layer always ensures the parent
+                -- doujin_books row exists first.
+                CREATE TABLE IF NOT EXISTS doujin_book_links (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    book TEXT NOT NULL REFERENCES doujin_books(folder_path),
+                    label TEXT DEFAULT '',
+                    url TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(book, url)
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_jobs_status_id ON jobs(status, id);
                 CREATE INDEX IF NOT EXISTS idx_history_event_date ON history_entries(event_date DESC);
                 CREATE INDEX IF NOT EXISTS idx_history_domain ON history_entries(domain);
                 CREATE INDEX IF NOT EXISTS idx_cookies_domain_provider ON cookie_entries(domain, provider);
+                CREATE INDEX IF NOT EXISTS idx_doujin_links_book ON doujin_book_links(book);
                 """
             )
         migrate_legacy_history()

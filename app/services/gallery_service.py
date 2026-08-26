@@ -3,6 +3,7 @@ from __future__ import annotations
 import mimetypes
 from pathlib import Path
 
+from app.config.gallery_modes import resolve_mode
 from app.config.paths import DOWNLOAD_DIR
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".avif", ".tif", ".tiff"}
@@ -97,7 +98,12 @@ def _iter_leaf_items(folder: Path) -> list[dict]:
 
 
 def list_categories() -> list[dict]:
-    """Return top-level category directories under DOWNLOAD_DIR."""
+    """Return top-level category directories under DOWNLOAD_DIR.
+
+    `mode` tells the frontend which presentation this source uses
+    ("doujinshi" -> cover wall + reader, "general" -> unchanged thumbnail
+    wall) so it never needs its own copy of the source list — see
+    app.config.gallery_modes.resolve_mode, the single source of truth."""
     if not DOWNLOAD_DIR.exists():
         return []
     cats: list[dict] = []
@@ -110,6 +116,7 @@ def list_categories() -> list[dict]:
                 "name": entry.name,
                 "path": _rel(entry),
                 "item_count": len(items),
+                "mode": resolve_mode(entry.name),
             }
         )
     return cats
