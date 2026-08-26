@@ -1,0 +1,6 @@
+[
+  "app.providers.direct_file.provider -> app.services.path_service",
+  "app.providers.gallery_dl.auth -> app.services.token_service",
+  "app.providers.gallery_dl.provider -> app.services.path_service",
+  "app.providers.ytdlp.provider -> app.services.path_service"
+]

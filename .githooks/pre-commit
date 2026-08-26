@@ -1,0 +1,46 @@
+#!/bin/sh
+# L0 quality gate — runs only the stack(s) the commit actually touches, derived from the
+# staged file list. Adapted from misaka_site2.0's .githooks/pre-commit (verified recipe),
+# extended to a second stack because this repo is a Vue/JS + Python hybrid.
+# Enable once per clone/machine:
+#   git config core.hooksPath .githooks
+# (core.hooksPath is local, per-clone config — it does NOT travel with the repo, so a fresh
+# clone or a new machine has this hook silently absent until the command above is run again.)
+set -e
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+
+ran_any=0
+
+if printf '%s\n' "$staged" | grep -q '^frontend/'; then
+  ran_any=1
+  echo "[pre-commit] frontend/ changes staged — running gate:l0 (G1 lint-diff, G3 tests+assertions, G4 import cycles)..."
+  (cd "$repo_root/frontend" && npm run gate:l0)
+  status=$?
+  if [ "$status" -ne 0 ]; then
+    echo "[pre-commit] frontend gate:l0 FAILED — commit blocked. Fix the above and retry, or --no-verify to bypass (discouraged, logged as a rule violation)."
+    exit "$status"
+  fi
+  echo "[pre-commit] frontend gate:l0 PASSED."
+fi
+
+if printf '%s\n' "$staged" | grep -qE '^(app|module|scripts|tests)/.*\.py$'; then
+  ran_any=1
+  echo "[pre-commit] Python changes staged — running quality-gates/run.py l0 (G1 ruff, G2 mypy, G3 pytest+assertions, G4 import-linter)..."
+  py -3.11 quality-gates/run.py l0
+  status=$?
+  if [ "$status" -ne 0 ]; then
+    echo "[pre-commit] Python l0 FAILED — commit blocked. Fix the above and retry, or --no-verify to bypass (discouraged, logged as a rule violation)."
+    exit "$status"
+  fi
+  echo "[pre-commit] Python l0 PASSED."
+fi
+
+if [ "$ran_any" -eq 0 ]; then
+  echo "[pre-commit] no frontend/ or Python changes staged — skipping quality gates."
+fi
+
+exit 0

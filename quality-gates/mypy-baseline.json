@@ -1,0 +1,14 @@
+[
+  "app/providers/gallery_dl/provider.py|arg-type|Argument 1 to \"sanitize_component\" has incompatible type \"Any | None\"; expected \"str\"",
+  "app/providers/gallery_dl/provider.py|union-attr|Item \"None\" of \"IO[str] | None\" has no attribute \"readline\"",
+  "app/providers/sites/nhentai.py|arg-type|Argument 3 to \"sub\" has incompatible type \"str | AttributeValueList\"; expected \"str\"",
+  "app/providers/sites/wnacg.py|assignment|Incompatible types in assignment (expression has type \"None\", variable has type Module)",
+  "app/providers/sites/wnacg.py|return-value|Incompatible return value type (got \"tuple[Sequence[str], str]\", expected \"tuple[str | None, str | None]\")",
+  "app/providers/sites/wnacg.py|type-var|Value of type variable \"AnyStr\" of \"urljoin\" cannot be \"Sequence[str]\"",
+  "app/providers/sites/wnacg.py|union-attr|Item \"None\" of \"Match[str] | None\" has no attribute \"group\"",
+  "app/providers/ytdlp/provider.py|union-attr|Item \"None\" of \"IO[str] | None\" has no attribute \"readline\"",
+  "app/services/discord_service.py|arg-type|Argument 2 to \"remove_reaction\" of \"PartialMessage\" has incompatible type \"ClientUser | None\"; expected \"Snowflake\"",
+  "app/services/download_service.py|valid-type|Function \"builtins.callable\" is not valid as a type",
+  "app/storage/db.py|arg-type|Argument 1 to \"int\" has incompatible type \"int | None\"; expected \"str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc\"",
+  "app/storage/repositories/doujin_repo.py|arg-type|Argument 1 to \"int\" has incompatible type \"int | None\"; expected \"str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc\""
+]
