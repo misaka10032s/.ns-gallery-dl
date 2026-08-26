@@ -64,6 +64,115 @@ npm run build   # outputs to app/ui/ (served by Flask)
 npm run dev     # dev server at 127.0.0.1:5173
 ```
 
+## Dev commands
+
+### Python — install dev/gate tooling
+```bash
+py -3.11 -m pip install -r requirements-dev.txt
+```
+Use `py -3.11` (the cluster-standard interpreter — NEVER bare `python`/`python3`, see global
+CLAUDE.md). The repo's own `venv/` (Python 3.13) carries only runtime deps (Flask, gallery-dl,
+yt-dlp, discord.py, …) — no pytest/ruff/mypy — and this repo's own CLAUDE.md states "Python
+3.11", so `py -3.11` is both the intended-version match AND where the dev tooling actually
+lives; it's used for every gate command below.
+
+### Python — lint / typecheck / test
+```bash
+py -3.11 -m ruff check app module tests          # G1 (bare, unbaselined view)
+py -3.11 -m mypy app --ignore-missing-imports     # G2 (bare, unbaselined view)
+py -3.11 -m pytest -q                             # G3 — 12 test files, 197 tests, ~4-6s
+```
+
+### Frontend — lint / test
+```bash
+cd frontend
+npm run lint    # eslint . (repo-wide, will show the pre-existing 541-warning backlog — G1 itself is diff-scoped, see below)
+npm run test    # vitest run (0 test files today — passes vacuously; write tests here as the frontend grows)
+```
+
+## Code quality gates
+
+Two independent gate families — Vue/JS (`frontend/quality-gates/`, npm scripts) and Python
+(`quality-gates/`, `run.py`) — because this repo is a genuine hybrid (Vue 3 + Vite frontend,
+Flask + Discord-bot Python backend). Installed 2026-08-27; every gate below was proven to
+actually fail before shipping (plant a known violation -> non-zero exit -> revert -> green
+again) — a gate that could not be proven able to fail was dropped rather than faked (see
+"Dropped for this repo" below).
+
+**Every scan is explicitly scoped** — never a bare `.`/repo-root scan — so a gitignored scratch
+file (this repo has several root-level working dirs: `venv/`, `download/`, `save/`, `data/`,
+plus `frontend/tmp/` reserved for scratch scripts) can never become a gate input:
+- Python: ruff/mypy scan `app module tests` by name (not `.`); pytest is pinned to
+  `testpaths = ["tests"]` in `pyproject.toml` — a stray `test_*.py` dropped in `download/` is
+  invisible to it. Proven both ways (planted a failing test in `download/scratch/` -> pytest
+  exit 0; the same test moved into `tests/` -> exit 1).
+- Frontend: madge (G4) scans `src/` only, never the package root; vitest's `test.include` is
+  pinned to `src/**/*.{test,spec}.{js,mjs,cjs}` in `vite.config.js` (vitest's own default
+  recursive glob is NOT relied on — a sibling repo's rollout shipped exactly that vacuous-scope
+  bug, where a gitignored `frontend/tmp/` scratch test silently blocked every commit). Proven
+  both ways (planted a failing test in `frontend/tmp/` -> `vitest run` exit 0; the same test
+  moved into `src/` -> exit 1).
+- The diff-scoped gates (frontend G1/G3b, Python G3b) inherit this for free: `git diff` can
+  never see an untracked/gitignored file in the first place.
+
+### Python — `py -3.11 quality-gates/run.py <g1|g2|g3|g4|g5|l0|l1> [--update-baseline]`
+
+| Gate | What | Scope | Baseline (2026-08-27) |
+|---|---|---|---|
+| G1 | `ruff check app module tests` (select E,F,I,B,UP,RUF) | 49 pre-existing findings baselined (`ruff-baseline.json`), mostly `I001` unsorted-imports / `F401` unused-import — none fixed, only blocked from growing |
+| G2 | `mypy app` (non-strict — see `pyproject.toml` `[tool.mypy]` for why not `strict=true`) | 12 pre-existing errors baselined (`mypy-baseline.json`) across 8 files |
+| G3 | `pytest -q` (green) + AST assertion-presence on changed test functions (`check_test_assertions.py`) | 197 tests, all green |
+| G4 | `import-linter` `layers` contract: `app.api > app.services > app.providers > app.domain > app.storage > app.config` | 4 pre-existing violations baselined (`import-cycle-baseline.json`) — `app.providers.*` genuinely calls `app.services.path_service`/`token_service` for filesystem/auth helpers; this is a real working dependency, not cleaned up, only blocked from growing |
+| G5 | `pytest --cov=app --cov-report=xml` then `diff-cover --fail-under=60` | diff coverage of changed lines only |
+| ~~G6~~ | mutation testing | **REMOVED cluster-wide for Python** — `mutmut` 3.x refuses to start on native Windows at all ("use WSL"), exit 1 unconditionally before mutating anything. Not attempted; recorded, not faked. |
+
+`l0` = G1+G2+G3+G4 (~8s on the untouched tree). `l1` = l0+G5 (~15s).
+
+**G4 vacuous-gate finding (fixed):** before this install, `app/api`, `app/config`, `app/domain`,
+`app/providers`, `app/services`, `app/storage` (and 5 `app/providers/*` subpackages) had NO
+`__init__.py` — implicit PEP 420 namespace packages. import-linter's analysis engine (grimp
+3.15) cannot see into a subpackage without one, so the contract silently reported "0
+violations" on every run — not because the tree was clean, but because it couldn't find the
+code at all (`Missing layer 'app.api': module app.api does not exist.`, an ERROR that the
+original wrapper script didn't distinguish from a clean pass). Fixed by adding empty
+`__init__.py` to all 11 affected directories (zero behavior change — verified via
+`python -c "import app.main"`, the full pytest suite, and a grep for any namespace-package-only
+API usage, all clean) — and `check_import_cycles.py` now fails loud instead of silently passing
+if this regresses. **Do not remove those `__init__.py` files.**
+
+### Frontend — `cd frontend && npm run gate:<g1|g3|g4|l0|l1>`
+
+| Gate | What | Scope | Baseline (2026-08-27) |
+|---|---|---|---|
+| G1 | ESLint, diff-LINE-scoped (only messages on lines the diff actually touched) | 541 pre-existing warnings repo-wide (all `eslint-plugin-vue` stylistic rules — `max-attributes-per-line`, `singleline-html-element-content-newline`, `html-self-closing`; 0 errors) made a bare `--max-warnings=0` unusable, so this gate uses the same line-diff scoping misaka_site2.0 uses for the same reason, at a smaller scale |
+| G3 | `vitest run` (green) + `@vitest/eslint-plugin` `expect-expect` on changed test files | 0 test files today — passes vacuously; becomes real the moment the first test is added |
+| G4 | `madge` circular-import check on `src/` | 0 pre-existing cycles |
+| `l1` | = `l0` (no G5/G6 — see below) | |
+
+**Dropped for this repo, with evidence (not faked):**
+- **G2 (typecheck)** — this frontend has **zero TypeScript**: 0 `.ts`/`.tsx` files, no
+  `tsconfig.json` (verified via `find frontend -name "*.ts"`, 2026-08-27; all 26 source files
+  are `.vue`/`.js`). Wiring `vue-tsc`/`jsconfig.json` `checkJs` against fully unannotated JS
+  would inherit exactly the vacuous-checker failure this cluster already documented for
+  `vue-tsc --noEmit` on misaka_site2.0 (proven exit-0-on-a-real-bug case) — near-zero type
+  inference without any annotations gives false assurance, not real protection. Converting the
+  frontend to TypeScript is a real option but is a 26-file rewrite outside this task's scope
+  (minimal-diff rule) — revisit if/when the frontend adopts TS.
+- **G5 (diff coverage) / G6 (mutation)** — this frontend has **zero test files** (vs the Python
+  side's 12 files / 197 tests). A coverage or mutation-kill threshold against zero tests is
+  theatre, not signal — skip until real tests exist, then reconsider both.
+
+### Enabling the pre-commit hook
+```bash
+git config core.hooksPath .githooks
+```
+`.githooks/pre-commit` derives which stack(s) a commit touches from the staged file list and
+runs only that stack's `l0` (frontend `frontend/*` staged -> `npm run gate:l0`; Python
+`{app,module,scripts,tests}/*.py` staged -> `py -3.11 quality-gates/run.py l0`) — a
+docs-only or config-only commit runs neither and exits immediately. `core.hooksPath` is
+per-clone local config; it does not travel with the repo, so run the command above again on
+any fresh clone or machine.
+
 ## Project structure
 ```
 frontend/           Vue + Vite + Pinia source (styles/ = shared SCSS partials)

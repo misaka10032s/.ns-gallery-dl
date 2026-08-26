@@ -5,6 +5,13 @@ __pycache__/
 venv/
 frontend/node_modules/
 frontend/.vite/
+frontend/tmp/
+frontend/coverage/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage.xml
+.coverage
 cookies/*
 !cookies/.gitkeep
 

@@ -1,0 +1,58 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "RUF"]
+# RUF001/2/3: this repo's zh-TW comments always carry full-width punctuation — legitimate.
+ignore = ["E501", "RUF001", "RUF002", "RUF003"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+# Gradual-adoption profile, NOT strict: this is a large pre-existing codebase (51 files under
+# app/ alone) with no prior type-annotation discipline — `strict = true` would surface hundreds
+# of findings unrelated to any single change and make the baseline meaningless busywork rather
+# than a real signal. `disallow_untyped_defs` stays off so untyped legacy functions are not
+# forced to gain annotations just to satisfy this gate; the gate still catches real type errors
+# in code that already IS annotated (which is what all 15 baselined errors below actually are).
+disallow_untyped_defs = false
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+# EXPLICIT scope — do NOT rely on pytest's default recursive discovery from the repo root. This
+# repo has several gitignored scratch/working dirs at the root (download/, save/, data/, venv/)
+# — pytest's built-in norecursedirs already skips venv/, but NOT download/save/data, so a stray
+# test_*.py dropped there would otherwise be silently collected and could fail the gate on a
+# file nobody meant to ship. `testpaths` pins collection to tests/ only, regardless of what else
+# exists at the root (found & closed during this gate install, 2026-08-27; proof of both exit
+# codes in .claude/CLAUDE.md -> `## Code quality gates`).
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["app"]
+
+# G4 (import-linter) — layering contract derived from this package's ACTUAL current import graph
+# (verified 2026-08-27 via `grep -rhoE "^\s*(from|import)\s+app\.[a-zA-Z_.]+"` per subpackage —
+# see quality-gates/check_import_cycles.py's own docstring for the raw edges found). Unlike
+# learningMachine's from-scratch clean layering, this repo's app.providers and app.services
+# already import EACH OTHER in both directions (providers/*/provider.py calls
+# services.path_service / services.token_service for filesystem/auth helpers; services/
+# download_service.py calls providers.*.provider to actually invoke a download). That is a real,
+# working dependency shape, not a bug to silently "fix" by picking layer order — so the 4
+# providers->services edges below are pre-existing and BASELINED (import-cycle-baseline.json),
+# not cleaned up. This gate only blocks a NEW cross-layer edge beyond what's already there.
+[tool.importlinter]
+root_package = "app"
+
+[[tool.importlinter.contracts]]
+name = "layers"
+type = "layers"
+layers = [
+    "app.api",
+    "app.services",
+    "app.providers",
+    "app.domain",
+    "app.storage",
+    "app.config",
+]
