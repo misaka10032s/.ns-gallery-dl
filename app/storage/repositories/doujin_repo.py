@@ -129,6 +129,56 @@ def update_book(folder_path: str, fields: dict[str, Any], seed_defaults: dict[st
     return get_book(folder_path)  # type: ignore[return-value]
 
 
+def set_import_fields(
+    folder_path: str,
+    *,
+    favorite: bool,
+    thumbnail_path: str | None,
+    title_fetched: str | None,
+    artist_fetched: str | None,
+    seed_defaults: dict[str, Any],
+) -> dict:
+    """Write the legacy-import-owned columns for a book matched to an
+    existing folder (app/scripts/import_hentai_viewer.py). Bypasses
+    update_book()/EDITABLE_BOOK_FIELDS on purpose — imported_favorite and
+    imported_thumbnail are never user-editable via the book edit API, only
+    written here.
+
+    imported_favorite / imported_thumbnail are set UNCONDITIONALLY to the
+    import's value every call — they are import-owned data with no other
+    writer, so re-running the import with the same source is naturally
+    idempotent (same value written = no observable change) and a changed
+    source (re-imported favorite flag, a newly copied thumbnail) is always
+    reflected.
+
+    title_fetched / artist_fetched are the manual-edit-wins channel's
+    write-side guard: written ONLY when BOTH the matching *_override (the
+    user's own manual edit) AND *_fetched (a value already cached from a
+    real site fetch) are empty on the CURRENT row — so this never clobbers
+    something the user typed by hand, and never clobbers a genuine
+    doujin_meta_service fetch result with a lower-quality legacy copy.
+    """
+    ensure_book(folder_path, seed_defaults)
+    current = get_book(folder_path) or {}
+
+    fields: dict[str, Any] = {
+        "imported_favorite": 1 if favorite else 0,
+        "imported_thumbnail": thumbnail_path,
+    }
+    if title_fetched and not current.get("title_override") and not current.get("title_fetched"):
+        fields["title_fetched"] = title_fetched
+    if artist_fetched and not current.get("artist_override") and not current.get("artist_fetched"):
+        fields["artist_fetched"] = artist_fetched
+
+    set_clause = ", ".join(f"{col} = ?" for col in fields)
+    params = tuple(fields.values()) + (_now(), folder_path)
+    execute(
+        f"UPDATE doujin_books SET {set_clause}, updated_at = ? WHERE folder_path = ?",
+        params,
+    )
+    return get_book(folder_path)  # type: ignore[return-value]
+
+
 def list_links(book: str) -> list[dict]:
     rows = fetch_all(
         "SELECT id, book, label, url, created_at FROM doujin_book_links WHERE book = ? ORDER BY id",
@@ -223,3 +273,68 @@ def clear_series_on_books(series_id: int) -> None:
 
 def delete_series(series_id: int) -> None:
     execute("DELETE FROM doujin_series WHERE id = ?", (series_id,))
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Wanted books (待購/想看, no download/ folder yet) — imported from the legacy
+# hentaiViewer library only, no editing API. See doujin_wanted_books in
+# app/storage/db.py for why this is a separate table rather than a fake
+# doujin_books row.
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def get_wanted_book(source: str, code: str) -> dict | None:
+    row = fetch_one(
+        "SELECT * FROM doujin_wanted_books WHERE source = ? AND code = ?", (source, code)
+    )
+    return dict(row) if row else None
+
+
+def list_wanted_books() -> list[dict]:
+    rows = fetch_all(
+        "SELECT * FROM doujin_wanted_books ORDER BY source, code"
+    )
+    return [dict(row) for row in rows]
+
+
+def upsert_wanted_book(
+    source: str,
+    code: str,
+    *,
+    title: str,
+    artist: str,
+    favorite: bool,
+    thumbnail_path: str | None,
+) -> dict:
+    """Insert-or-overwrite one wanted-book row with the import's current
+    values. Every field here traces to the same-run allData.json record, so
+    writing it unconditionally on every call is idempotent (same source data
+    -> same row, no observable change on a re-run)."""
+    now = _now()
+    with connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO doujin_wanted_books
+                (source, code, title, artist, favorite, thumbnail_path, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(source, code) DO UPDATE SET
+                title = excluded.title,
+                artist = excluded.artist,
+                favorite = excluded.favorite,
+                thumbnail_path = excluded.thumbnail_path,
+                updated_at = excluded.updated_at
+            """,
+            (source, code, title, artist, 1 if favorite else 0, thumbnail_path, now, now),
+        )
+    return get_wanted_book(source, code)  # type: ignore[return-value]
+
+
+def delete_wanted_book(source: str, code: str) -> bool:
+    """Remove a wanted-book row — used when a re-run of the importer finds
+    the book now has a real download/ folder (promoted into doujin_books).
+    Idempotent no-op if the row is already gone."""
+    row = get_wanted_book(source, code)
+    if not row:
+        return False
+    execute("DELETE FROM doujin_wanted_books WHERE source = ? AND code = ?", (source, code))
+    return True

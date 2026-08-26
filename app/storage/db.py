@@ -180,6 +180,26 @@ def init_db() -> None:
                 -- page_count_fetched is a cross-check value only — it never
                 -- feeds page_count/page_count_override, which stay purely
                 -- derived from the local file count per the original spec.
+                -- imported_favorite / imported_thumbnail (added 2026-08-27,
+                -- app/scripts/import_hentai_viewer.py): the legacy hentaiViewer
+                -- app's per-book "favorite" star and cached site thumbnail, for
+                -- a book this import matched to an existing download/ folder.
+                -- Deliberately NOT folded into purchase_state — that column
+                -- already has a defined, UI-facing meaning (did the user pay
+                -- for this) and the legacy "favorite" star is a different axis
+                -- (did the user like it); conflating them would let a future
+                -- purchase-state edit silently destroy the imported signal
+                -- with no separate place to recover it. imported_favorite is
+                -- NULL for a book with no legacy import record, 0/1 once
+                -- imported (never reinterpreted). imported_thumbnail is a
+                -- DATA_DIR-relative path (e.g. "doujin_thumbnails/N105189.jpg")
+                -- to the copied legacy site thumbnail — NOT a book page and
+                -- never touches cover_page/pages; it is the only surviving
+                -- image for a book whose site thumbnail predates any page
+                -- scan. NULL means no legacy thumbnail was imported for this
+                -- book. Neither column is in doujin_repo.EDITABLE_BOOK_FIELDS
+                -- — they are import-owned, written only by the importer via
+                -- doujin_repo.set_import_fields, never by the book edit API.
                 CREATE TABLE IF NOT EXISTS doujin_books (
                     folder_path TEXT PRIMARY KEY,
                     title_override TEXT,
@@ -199,6 +219,8 @@ def init_db() -> None:
                     page_count_override INTEGER,
                     cover_page TEXT DEFAULT '',
                     last_page_index INTEGER NOT NULL DEFAULT 0,
+                    imported_favorite INTEGER,
+                    imported_thumbnail TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -217,6 +239,35 @@ def init_db() -> None:
                     UNIQUE(book, url)
                 );
 
+                -- "本子" records imported from the legacy hentaiViewer library
+                -- (app/scripts/import_hentai_viewer.py) that have NO matching
+                -- download/ folder — the 「待購/想看但還沒下載」 case. This is a
+                -- deliberately separate, minimal table rather than a fake row in
+                -- doujin_books: every doujin_books invariant assumes folder_path
+                -- resolves to a REAL, existing directory (resolve_book_dir,
+                -- get_book_detail's page scan, the reader) and a synthetic path
+                -- would quietly break all of that. (source, code) is the
+                -- ORIGINAL hentaiViewer identifier split (e.g. "N105189" ->
+                -- source="nhentai", code="105189") — see
+                -- app/scripts/import_hentai_viewer.py:split_hv_code. If the book
+                -- is downloaded later, a re-run of the importer matches it into
+                -- doujin_books and deletes the row here — the two tables are
+                -- mutually exclusive by construction, never both at once for the
+                -- same book. This is intentionally NOT a wishlist feature: no
+                -- status workflow, no editing API — just enough for the record
+                -- and its thumbnail to exist and be queried.
+                CREATE TABLE IF NOT EXISTS doujin_wanted_books (
+                    source TEXT NOT NULL,
+                    code TEXT NOT NULL,
+                    title TEXT DEFAULT '',
+                    artist TEXT DEFAULT '',
+                    favorite INTEGER NOT NULL DEFAULT 0,
+                    thumbnail_path TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY (source, code)
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_jobs_status_id ON jobs(status, id);
                 CREATE INDEX IF NOT EXISTS idx_history_event_date ON history_entries(event_date DESC);
                 CREATE INDEX IF NOT EXISTS idx_history_domain ON history_entries(domain);
@@ -225,8 +276,26 @@ def init_db() -> None:
                 CREATE INDEX IF NOT EXISTS idx_doujin_books_series_id ON doujin_books(series_id);
                 """
             )
+        _ensure_doujin_import_columns()
         migrate_legacy_history()
         _READY = True
+
+
+def _ensure_doujin_import_columns() -> None:
+    """CREATE TABLE IF NOT EXISTS never widens an already-existing table, and
+    this project has no migration framework — every prior schema change
+    (see git history on this file) either only affected brand-new tables or
+    shipped while doujin_books was still empty. imported_favorite /
+    imported_thumbnail are the first columns added to a table that may
+    already exist live, so this guard is required: check via PRAGMA
+    table_info, ALTER TABLE ADD COLUMN only what's missing. Cheap (one
+    PRAGMA read) and safe to run on every init_db() call."""
+    with connection() as conn:
+        cols = {row["name"] for row in conn.execute("PRAGMA table_info(doujin_books)").fetchall()}
+        if "imported_favorite" not in cols:
+            conn.execute("ALTER TABLE doujin_books ADD COLUMN imported_favorite INTEGER")
+        if "imported_thumbnail" not in cols:
+            conn.execute("ALTER TABLE doujin_books ADD COLUMN imported_thumbnail TEXT")
 
 
 def migrate_legacy_history() -> None:
