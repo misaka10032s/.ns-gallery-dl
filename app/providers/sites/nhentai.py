@@ -9,6 +9,64 @@ from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 
+def fetch_gallery_metadata(gallery_id: str, scraper=None) -> dict:
+    """Fetch a nhentai gallery page and return ITS OWN structured fields —
+    the clean title (span.pretty inside h1.title — not the bracket-wrapped
+    "[circle (artist)] title [tags]" the h1's full .text would give, which
+    is the same lossy string the folder name already carries), the
+    Artists:/Groups: tag-container names, and the Pages: count — rather
+    than re-deriving any of it from the folder name. This is deliberately
+    the ONLY source of title/artist/circle for doujin books that support a
+    fetch (app.services.doujin_meta_service) — the folder name is never
+    parsed for this.
+
+    Raises LookupError if the gallery doesn't exist (404), RuntimeError if
+    the page loaded but doesn't look like a real gallery page (e.g. a
+    Cloudflare challenge page with no #info block), or lets network
+    exceptions (timeout, connection error, non-2xx via raise_for_status)
+    propagate — callers (doujin_meta_service) classify all of these."""
+    owns_scraper = scraper is None
+    if owns_scraper:
+        scraper = cloudscraper.create_scraper()
+
+    url = f"https://nhentai.net/g/{gallery_id}/"
+    response = scraper.get(url, timeout=15)
+    if response.status_code == 404:
+        raise LookupError(f"nhentai gallery {gallery_id} not found")
+    response.raise_for_status()
+    response.encoding = "utf-8"
+
+    soup = BeautifulSoup(response.text, "lxml")
+    info = soup.find("div", id="info")
+    if info is None:
+        raise RuntimeError("nhentai gallery page missing #info block (likely a challenge/blocked page)")
+
+    h1 = info.find("h1", class_="title")
+    pretty = h1.find("span", class_="pretty") if h1 else None
+    title = pretty.get_text(strip=True) if pretty else ""
+    if not title:
+        raise RuntimeError("nhentai gallery page missing its title")
+
+    fields: dict[str, list[str]] = {}
+    for container in info.find_all("div", class_="tag-container"):
+        label = (container.find(string=True, recursive=False) or "").strip().rstrip(":")
+        names = [span.get_text(strip=True) for span in container.find_all("span", class_="name")]
+        fields[label] = names
+
+    artist = " / ".join(fields.get("Artists", []))
+    circle = " / ".join(fields.get("Groups", []))
+    pages_raw = fields.get("Pages", [])
+    page_count = int(pages_raw[0]) if pages_raw and pages_raw[0].isdigit() else None
+
+    return {
+        "title": title,
+        "artist": artist,
+        "circle": circle,
+        "page_count": page_count,
+        "source_url": url,
+    }
+
+
 def _remove_illegal_chars(filename: str) -> str:
     cleaned = re.sub(r'[\\/*?:",<>|]', "", filename)
     cleaned = cleaned.strip(". ")

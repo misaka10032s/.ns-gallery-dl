@@ -29,7 +29,7 @@ const filteredBooks = computed(() => {
   const kw = search.value.trim().toLowerCase()
   if (!kw) return books.value
   return books.value.filter((b) =>
-    [b.title, b.artist, b.circle, b.series].some((v) => (v || '').toLowerCase().includes(kw)),
+    [b.title, b.artist, b.circle, b.series_name].some((v) => (v || '').toLowerCase().includes(kw)),
   )
 })
 
@@ -64,7 +64,8 @@ function onBookUpdated(updated) {
       title: updated.title,
       artist: updated.artist,
       circle: updated.circle,
-      series: updated.series,
+      series_id: updated.series_id,
+      series_name: updated.series_name,
       purchase_state: updated.purchase_state,
       page_count: updated.page_count,
       cover: updated.cover,

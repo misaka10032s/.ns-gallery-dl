@@ -1,14 +1,28 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 
-import { addDoujinLink, deleteDoujinLink, fetchDoujinBookDetail, updateDoujinBook } from '../../api/gallery'
+import {
+  addDoujinLink,
+  deleteDoujinLink,
+  fetchDoujinBookDetail,
+  fetchDoujinBookMeta,
+  updateDoujinBook,
+} from '../../api/gallery'
 import ConfirmDialog from './ConfirmDialog.vue'
+import SeriesCombobox from './SeriesCombobox.vue'
 
 // Edit panel for one doujinshi book's own fields (title/artist/circle/size/
-// color-pages/series/purchase state/cover page/page-count override) plus its
-// plural links (N網/P網/購買網...). Field read/update and link add/remove all
-// go through app/services/doujin_service.py's validation — this panel does
-// only light client-side shaping (trim, number parsing) before sending.
+// series/purchase state/cover page/page-count override) plus its plural
+// links (N網/P網/購買網...). Field read/update and link add/remove all go
+// through app/services/doujin_service.py's validation — this panel does only
+// light client-side shaping (trim, number parsing) before sending.
+//
+// title/artist/circle are NOT parsed from the folder name (that was tried
+// and explicitly rejected — the folder name is lossy). They can come from
+// the source site (「抓取站點資料」button, nhentai only today) or be typed
+// here; typing and saving always sets an explicit override, which a fetch
+// can never clobber — "還原自動值" clears the override back to whatever the
+// site/default currently gives.
 const props = defineProps({
   folderPath: { type: String, required: true },
 })
@@ -17,20 +31,31 @@ const emit = defineEmits(['close', 'updated'])
 
 const loading = ref(true)
 const saving = ref(false)
+const fetching = ref(false)
 const error = ref('')
 const detail = ref(null)
+
+const SOURCE_LABEL = { manual: '已編輯', fetched: '站點資料', default: '預設' }
+const FETCH_STATUS_LABEL = {
+  ok: '成功',
+  blocked: '被擋下（可能觸發反機器人驗證）',
+  not_found: '找不到這本書（可能已下架）',
+  network_error: '網路錯誤',
+  no_gallery_id: '資料夾名稱沒有可辨識的 ID',
+  unsupported_source: '此來源尚未支援自動抓取',
+}
 
 const form = ref({
   title: '',
   artist: '',
   circle: '',
   size_label: '',
-  color_pages: '',
-  series: '',
   purchase_state: 'not_purchased',
   cover_page: '',
   page_count_override: '',
 })
+const seriesId = ref(null)
+const seriesName = ref('')
 
 const newLinkLabel = ref('')
 const newLinkUrl = ref('')
@@ -39,6 +64,7 @@ const linkError = ref('')
 const confirmDeleteId = ref(null)
 
 const pageOptions = computed(() => detail.value?.pages ?? [])
+const fetchStatusLabel = computed(() => FETCH_STATUS_LABEL[detail.value?.meta_fetch_status] ?? '尚未抓取過')
 
 function applyDetailToForm(d) {
   form.value = {
@@ -46,12 +72,12 @@ function applyDetailToForm(d) {
     artist: d.artist ?? '',
     circle: d.circle ?? '',
     size_label: d.size_label ?? '',
-    color_pages: d.color_pages ?? '',
-    series: d.series ?? '',
     purchase_state: d.purchase_state ?? 'not_purchased',
     cover_page: d.cover_page ?? '',
     page_count_override: d.page_count_override ?? '',
   }
+  seriesId.value = d.series_id ?? null
+  seriesName.value = d.series_name ?? ''
 }
 
 async function load() {
@@ -77,8 +103,7 @@ async function save() {
       artist: form.value.artist.trim(),
       circle: form.value.circle.trim(),
       size_label: form.value.size_label.trim(),
-      color_pages: form.value.color_pages.trim(),
-      series: form.value.series.trim(),
+      series_id: seriesId.value,
       purchase_state: form.value.purchase_state,
       cover_page: form.value.cover_page,
       page_count_override: override === '' ? null : Number(override),
@@ -90,6 +115,36 @@ async function save() {
     error.value = e.message || '儲存失敗'
   } finally {
     saving.value = false
+  }
+}
+
+async function resetField(field) {
+  error.value = ''
+  try {
+    detail.value = await updateDoujinBook(props.folderPath, { [field]: null })
+    applyDetailToForm(detail.value)
+    emit('updated', detail.value)
+  } catch (e) {
+    error.value = e.message || '還原失敗'
+  }
+}
+
+function onSeriesSelect({ id, name }) {
+  seriesId.value = id
+  seriesName.value = name
+}
+
+async function fetchMeta() {
+  fetching.value = true
+  error.value = ''
+  try {
+    detail.value = await fetchDoujinBookMeta(props.folderPath)
+    applyDetailToForm(detail.value)
+    emit('updated', detail.value)
+  } catch (e) {
+    error.value = e.message || '抓取失敗'
+  } finally {
+    fetching.value = false
   }
 }
 
@@ -146,36 +201,68 @@ watch(() => props.folderPath, load, { immediate: true })
           <div v-if="error" class="edit-panel__error">{{ error }}</div>
 
           <div class="edit-panel__body">
+            <p class="edit-panel__folder-name" :title="detail?.folder_name">
+              原始資料夾名稱：{{ detail?.folder_name }}
+            </p>
+
+            <div class="edit-panel__fetch-row">
+              <button class="btn btn--ghost btn--small" type="button" :disabled="fetching" @click="fetchMeta">
+                {{ fetching ? '抓取中...' : '⤓ 從站點抓取資料' }}
+              </button>
+              <span class="edit-panel__fetch-status">{{ fetchStatusLabel }}</span>
+            </div>
+
             <label class="field">
-              <span>名稱</span>
+              <span>
+                名稱
+                <em class="field__source">（{{ SOURCE_LABEL[detail?.title_source] ?? '預設' }}）</em>
+                <button
+                  v-if="detail?.title_source === 'manual'"
+                  class="field__reset"
+                  type="button"
+                  @click="resetField('title')"
+                >還原自動值</button>
+              </span>
               <input v-model="form.title" class="form-input" type="text" maxlength="500" />
             </label>
 
             <div class="field-row">
               <label class="field">
-                <span>作者</span>
+                <span>
+                  作者
+                  <em class="field__source">（{{ SOURCE_LABEL[detail?.artist_source] ?? '預設' }}）</em>
+                  <button
+                    v-if="detail?.artist_source === 'manual'"
+                    class="field__reset"
+                    type="button"
+                    @click="resetField('artist')"
+                  >還原</button>
+                </span>
                 <input v-model="form.artist" class="form-input" type="text" maxlength="500" />
               </label>
               <label class="field">
-                <span>社團</span>
+                <span>
+                  社團
+                  <em class="field__source">（{{ SOURCE_LABEL[detail?.circle_source] ?? '預設' }}）</em>
+                  <button
+                    v-if="detail?.circle_source === 'manual'"
+                    class="field__reset"
+                    type="button"
+                    @click="resetField('circle')"
+                  >還原</button>
+                </span>
                 <input v-model="form.circle" class="form-input" type="text" maxlength="500" />
               </label>
             </div>
 
-            <div class="field-row">
-              <label class="field">
-                <span>尺寸</span>
-                <input v-model="form.size_label" class="form-input" type="text" maxlength="500" />
-              </label>
-              <label class="field">
-                <span>彩頁</span>
-                <input v-model="form.color_pages" class="form-input" type="text" maxlength="500" placeholder="例：p1-4" />
-              </label>
-            </div>
+            <label class="field">
+              <span>尺寸</span>
+              <input v-model="form.size_label" class="form-input" type="text" maxlength="500" />
+            </label>
 
             <label class="field">
-              <span>分類（XX系列）</span>
-              <input v-model="form.series" class="form-input" type="text" maxlength="500" />
+              <span>分類</span>
+              <SeriesCombobox :series-id="seriesId" :series-name="seriesName" @select="onSeriesSelect" />
             </label>
 
             <div class="field-row">
@@ -187,7 +274,12 @@ watch(() => props.folderPath, load, { immediate: true })
                 </select>
               </label>
               <label class="field">
-                <span>頁數（自動偵測，可覆蓋）</span>
+                <span>
+                  頁數（自動偵測，可覆蓋）
+                  <em v-if="detail?.page_count_fetched != null" class="field__source">
+                    （站點：{{ detail.page_count_fetched }} 頁）
+                  </em>
+                </span>
                 <input
                   v-model="form.page_count_override"
                   class="form-input"
@@ -305,6 +397,27 @@ watch(() => props.folderPath, load, { immediate: true })
   font-size: 0.82rem;
 }
 
+.edit-panel__folder-name {
+  margin: 0;
+  font-size: 0.76rem;
+  color: $slate-500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edit-panel__fetch-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.edit-panel__fetch-status {
+  font-size: 0.78rem;
+  color: $slate-500;
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -315,6 +428,30 @@ watch(() => props.folderPath, load, { immediate: true })
   span {
     font-size: 0.78rem;
     color: $slate-500;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+  }
+}
+
+.field__source {
+  font-style: normal;
+  color: $slate-400;
+  font-size: 0.72rem;
+}
+
+.field__reset {
+  border: none;
+  background: transparent;
+  color: $blue-600;
+  font-size: 0.72rem;
+  cursor: pointer;
+  padding: 0;
+  margin-left: auto;
+
+  &:hover {
+    text-decoration: underline;
   }
 }
 

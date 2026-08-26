@@ -2,23 +2,37 @@ from __future__ import annotations
 
 import os
 import re
+from datetime import datetime
+from difflib import SequenceMatcher
 from pathlib import Path
 
 from app.config.gallery_modes import MODE_DOUJINSHI, resolve_mode
 from app.config.paths import DOWNLOAD_DIR
+from app.services import doujin_meta_service
 from app.services.gallery_service import IMAGE_EXTS
 from app.storage.repositories import doujin_repo
 
 ALLOWED_PURCHASE_STATES = ("not_purchased", "purchased")
 DEFAULT_PURCHASE_STATE = "not_purchased"
 
-# Strings are user-typed metadata (title/artist/circle/...) — cap length so a
-# pasted wall of text can't bloat a row; not a hard business limit.
+# Strings are user-typed metadata — cap length so a pasted wall of text can't
+# bloat a row; not a hard business limit. title/artist/circle have their own
+# override/fetched handling below; size_label is the only field left in this
+# "plain editable string" bucket.
+# 彩頁 (color_pages) was removed 2026-08-26 — the user does not want the field
+# and it carried no data yet. Do not re-add without a stated reason.
 MAX_FIELD_LEN = 500
-
-_STRING_FIELDS = ("title", "artist", "circle", "size_label", "color_pages", "series")
+_STRING_FIELDS = ("size_label",)
 
 _NUM_RE = re.compile(r"(\d+)")
+
+# Near-duplicate series threshold (SequenceMatcher.ratio() on the
+# whitespace-collapsed, lowercased form). Anything at or above this is
+# surfaced as "you probably mean this one"; below it, series are treated as
+# unrelated. Exact matches after normalization (case/whitespace-only
+# differences) never reach this check at all — they resolve to the SAME row
+# automatically, see resolve_or_create_series().
+SERIES_SIMILARITY_THRESHOLD = 0.82
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -103,6 +117,14 @@ def resolve_book_dir(folder_path: str) -> Path | None:
 # ──────────────────────────────────────────────────────────────────────────────
 # Read paths
 # ──────────────────────────────────────────────────────────────────────────────
+#
+# title/artist/circle precedence, computed at read time (never pre-merged
+# into storage): *_override (manual, always wins) > *_fetched (site-sourced,
+# see doujin_meta_service) > a plain default (folder name for title, '' for
+# artist/circle). There is deliberately NO folder-name parsing anywhere in
+# this file — a folder name is treated only as a display fallback and, via
+# doujin_meta_service.extract_gallery_id, a place to read a bare numeric
+# identifier off the front. It is never interpreted for title/artist/circle.
 
 
 def _cover_for(pages: list[str], db_row: dict | None) -> str | None:
@@ -119,6 +141,19 @@ def _cover_for(pages: list[str], db_row: dict | None) -> str | None:
 def _effective_page_count(db_row: dict | None, live_count: int) -> int:
     override = (db_row or {}).get("page_count_override")
     return override if override is not None else live_count
+
+
+def _resolve_field(db_row: dict | None, field: str, default: str) -> tuple[str, str]:
+    """Returns (effective_value, source) where source is "manual" | "fetched"
+    | "default"."""
+    row = db_row or {}
+    override = row.get(f"{field}_override")
+    if override is not None:
+        return override, "manual"
+    fetched = row.get(f"{field}_fetched")
+    if fetched:
+        return fetched, "fetched"
+    return default, "default"
 
 
 def list_source_books(source: str) -> list[dict] | None:
@@ -149,14 +184,18 @@ def list_source_books(source: str) -> list[dict] | None:
     for (name, path), folder_path in zip(folders, folder_paths):
         pages = _pages(path)
         db_row = db_rows.get(folder_path)
+        title, _ = _resolve_field(db_row, "title", name)
+        artist, _ = _resolve_field(db_row, "artist", "")
+        circle, _ = _resolve_field(db_row, "circle", "")
         cover = _cover_for(pages, db_row)
         books.append(
             {
                 "folder_path": folder_path,
-                "title": (db_row or {}).get("title") or name,
-                "artist": (db_row or {}).get("artist", ""),
-                "circle": (db_row or {}).get("circle", ""),
-                "series": (db_row or {}).get("series", ""),
+                "title": title,
+                "artist": artist,
+                "circle": circle,
+                "series_id": (db_row or {}).get("series_id"),
+                "series_name": (db_row or {}).get("series_name"),
                 "purchase_state": (db_row or {}).get("purchase_state") or DEFAULT_PURCHASE_STATE,
                 "page_count": _effective_page_count(db_row, len(pages)),
                 "cover": f"{folder_path}/{cover}" if cover else None,
@@ -168,40 +207,60 @@ def list_source_books(source: str) -> list[dict] | None:
 def get_book_detail(folder_path: str) -> dict | None:
     """Full detail for the reader + edit panel. This DOES lazily create the DB
     row (an explicit open/edit is a real "touch"), refreshing the cached
-    page_count from disk at the same time."""
+    page_count from disk at the same time — title/artist/circle are never
+    touched here (no parsing to refresh); they only change via update_book
+    (manual) or fetch_book_metadata (site)."""
     book_dir = resolve_book_dir(folder_path)
     if book_dir is None:
         return None
     pages = _pages(book_dir)
-    db_row = doujin_repo.ensure_book(folder_path, {"title": book_dir.name, "page_count": len(pages)})
-    # keep the cached count fresh without clobbering a manual override
+    db_row = doujin_repo.ensure_book(folder_path, {"page_count": len(pages)})
     if db_row.get("page_count") != len(pages):
-        db_row = doujin_repo.update_book(folder_path, {"page_count": len(pages)}, {"title": book_dir.name, "page_count": len(pages)})
+        db_row = doujin_repo.update_book(folder_path, {"page_count": len(pages)}, {"page_count": len(pages)})
+
+    title, title_source = _resolve_field(db_row, "title", book_dir.name)
+    artist, artist_source = _resolve_field(db_row, "artist", "")
+    circle, circle_source = _resolve_field(db_row, "circle", "")
 
     cover = _cover_for(pages, db_row)
     last_page_index = min(max(db_row.get("last_page_index", 0), 0), max(len(pages) - 1, 0))
 
     return {
         "folder_path": folder_path,
-        "title": db_row.get("title") or book_dir.name,
-        "artist": db_row.get("artist", ""),
-        "circle": db_row.get("circle", ""),
+        "folder_name": book_dir.name,  # original on-disk name — always visible
+        "title": title,
+        "title_source": title_source,
+        "title_override": db_row.get("title_override"),
+        "title_fetched": db_row.get("title_fetched"),
+        "artist": artist,
+        "artist_source": artist_source,
+        "artist_override": db_row.get("artist_override"),
+        "artist_fetched": db_row.get("artist_fetched"),
+        "circle": circle,
+        "circle_source": circle_source,
+        "circle_override": db_row.get("circle_override"),
+        "circle_fetched": db_row.get("circle_fetched"),
         "size_label": db_row.get("size_label", ""),
-        "color_pages": db_row.get("color_pages", ""),
-        "series": db_row.get("series", ""),
+        "series_id": db_row.get("series_id"),
+        "series_name": db_row.get("series_name"),
         "purchase_state": db_row.get("purchase_state") or DEFAULT_PURCHASE_STATE,
         "page_count": _effective_page_count(db_row, len(pages)),
         "page_count_override": db_row.get("page_count_override"),
+        "page_count_fetched": db_row.get("page_count_fetched"),
         "cover": f"{folder_path}/{cover}" if cover else None,
         "cover_page": db_row.get("cover_page", ""),
         "last_page_index": last_page_index,
         "pages": [{"name": p, "path": f"{folder_path}/{p}"} for p in pages],
         "links": doujin_repo.list_links(folder_path),
+        "gallery_id": doujin_meta_service.extract_gallery_id(book_dir.name),
+        "meta_fetch_status": db_row.get("meta_fetch_status"),
+        "meta_fetched_at": db_row.get("meta_fetched_at"),
+        "meta_source_url": db_row.get("meta_source_url"),
     }
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Writes
+# Writes — book fields
 # ──────────────────────────────────────────────────────────────────────────────
 
 
@@ -229,11 +288,36 @@ def update_book(folder_path: str, payload: dict) -> dict | None:
                 raise ValidationError(f"{key} exceeds {MAX_FIELD_LEN} characters")
             fields[key] = value.strip()
 
+    # title/artist/circle: a client-supplied value always writes the
+    # *_override column (JSON null clears it -> falls back to *_fetched, then
+    # the plain default) — this is the manual-edit-always-wins channel, and
+    # it is untouched by fetch_book_metadata.
+    for key in ("title", "artist", "circle"):
+        if key in payload:
+            value = payload[key]
+            if value is None:
+                fields[f"{key}_override"] = None
+            else:
+                if not isinstance(value, str):
+                    raise ValidationError(f"{key} must be a string or null")
+                if len(value) > MAX_FIELD_LEN:
+                    raise ValidationError(f"{key} exceeds {MAX_FIELD_LEN} characters")
+                fields[f"{key}_override"] = value.strip()
+
     if "purchase_state" in payload:
         state = payload["purchase_state"]
         if state not in ALLOWED_PURCHASE_STATES:
             raise ValidationError(f"purchase_state must be one of {ALLOWED_PURCHASE_STATES}")
         fields["purchase_state"] = state
+
+    if "series_id" in payload:
+        series_id = payload["series_id"]
+        if series_id is not None:
+            if not isinstance(series_id, int) or isinstance(series_id, bool):
+                raise ValidationError("series_id must be an integer or null")
+            if doujin_repo.get_series(series_id) is None:
+                raise ValidationError(f"series_id {series_id} does not exist")
+        fields["series_id"] = series_id
 
     if "cover_page" in payload:
         cover_page = payload["cover_page"] or ""
@@ -257,7 +341,7 @@ def update_book(folder_path: str, payload: dict) -> dict | None:
     # page_count itself is never client-settable — always refreshed from disk.
     fields["page_count"] = len(pages)
 
-    doujin_repo.update_book(folder_path, fields, {"title": book_dir.name, "page_count": len(pages)})
+    doujin_repo.update_book(folder_path, fields, {"page_count": len(pages)})
     return get_book_detail(folder_path)
 
 
@@ -275,7 +359,7 @@ def add_link(folder_path: str, label: str, url: str) -> dict | None:
         raise ValidationError("label exceeds 100 characters")
 
     pages = _pages(book_dir)
-    doujin_repo.ensure_book(folder_path, {"title": book_dir.name, "page_count": len(pages)})
+    doujin_repo.ensure_book(folder_path, {"page_count": len(pages)})
     return doujin_repo.add_link(folder_path, label, url)
 
 
@@ -284,3 +368,156 @@ def delete_link(folder_path: str, link_id: int) -> bool:
     if book_dir is None:
         return False
     return doujin_repo.delete_link(link_id, folder_path)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Writes — metadata fetch (site-sourced title/artist/circle/page count)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def fetch_book_metadata(folder_path: str) -> dict | None:
+    """Fetch this book's metadata from its source site (see
+    doujin_meta_service) and store the RESULT — never overwriting a manual
+    override (title_override etc. are a completely separate column; a fetch
+    only ever writes *_fetched + the meta_* provenance fields). Always
+    records the attempt's outcome (meta_fetch_status/_fetched_at/_source_url)
+    even when it did not yield usable fields, so a failure is visible rather
+    than looking identical to "never tried". Returns None if folder_path
+    doesn't resolve to a real doujinshi book."""
+    book_dir = resolve_book_dir(folder_path)
+    if book_dir is None:
+        return None
+
+    source = folder_path.split("/", 1)[0]
+    gallery_id = doujin_meta_service.extract_gallery_id(book_dir.name)
+    if gallery_id is None:
+        result = {"status": doujin_meta_service.FETCH_STATUS_NO_GALLERY_ID}
+    else:
+        result = doujin_meta_service.fetch_metadata(source, gallery_id)
+
+    fields: dict = {
+        "meta_fetch_status": result["status"],
+        "meta_fetched_at": datetime.now().isoformat(timespec="seconds"),
+        "meta_source_url": result.get("source_url"),
+    }
+    if result["status"] == doujin_meta_service.FETCH_STATUS_OK:
+        if result.get("title"):
+            fields["title_fetched"] = result["title"]
+        if result.get("artist"):
+            fields["artist_fetched"] = result["artist"]
+        if result.get("circle"):
+            fields["circle_fetched"] = result["circle"]
+        if result.get("page_count") is not None:
+            fields["page_count_fetched"] = result["page_count"]
+
+    pages = _pages(book_dir)
+    doujin_repo.update_book(folder_path, fields, {"page_count": len(pages)})
+    return get_book_detail(folder_path)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Series (分類) — controlled vocabulary
+# ──────────────────────────────────────────────────────────────────────────────
+
+_WHITESPACE_RUN_RE = re.compile(r"\s+")
+
+
+def normalize_series_name(raw: str) -> str:
+    """Trim + collapse internal whitespace runs to one space. This IS the
+    display form (preserves the user's original casing — a series name is a
+    display label, not a slug). The separate uniqueness key
+    (case-insensitive) is this value lower-cased — see
+    doujin_repo.find_series_by_normalized / create_series."""
+    return _WHITESPACE_RUN_RE.sub(" ", (raw or "").strip())
+
+
+class NearDuplicateSeriesError(ValueError):
+    """Raised when a series name would create a near-duplicate of an existing
+    one (differs by more than case/spacing — e.g. a likely typo) and the
+    caller has not confirmed they want a separate entry anyway."""
+
+    def __init__(self, candidates: list[dict]):
+        super().__init__("near-duplicate series")
+        self.candidates = candidates
+
+
+class SeriesInUseError(ValueError):
+    """Raised by delete_series when books still reference it and the caller
+    has not passed force=True."""
+
+    def __init__(self, book_count: int):
+        super().__init__("series still referenced by books")
+        self.book_count = book_count
+
+
+def _find_near_duplicate_series(display_name: str) -> list[dict]:
+    key = display_name.lower()
+    scored: list[tuple[float, dict]] = []
+    for series in doujin_repo.list_all_series():
+        ratio = SequenceMatcher(None, key, series["normalized_name"]).ratio()
+        if ratio >= SERIES_SIMILARITY_THRESHOLD:
+            scored.append((ratio, series))
+    scored.sort(key=lambda t: -t[0])
+    return [{**series, "similarity": round(ratio, 3)} for ratio, series in scored[:5]]
+
+
+def search_series(query: str) -> list[dict]:
+    """Backs the edit panel's as-you-type combobox filtering."""
+    query = (query or "").strip()
+    if not query:
+        return doujin_repo.list_all_series()
+    return doujin_repo.search_series(query)
+
+
+def resolve_or_create_series(raw_name: str, *, confirm: bool = False) -> dict:
+    """Attach-or-create a series by display name.
+
+    - Exact match after normalization (case/whitespace differences only) ->
+      silently reuses the existing row (status "reused") — this is what
+      "treat names differing only by case or spacing as the same series"
+      means: they ARE the same row, not a warning.
+    - No exact match, but a near-duplicate (typo/punctuation-level
+      similarity) exists and `confirm` is not set -> raises
+      NearDuplicateSeriesError with the candidate(s); the caller must either
+      attach to a candidate's id directly, or resubmit with confirm=True to
+      create the new one anyway. This is the "make the collision visible,
+      don't block" behavior.
+    - Otherwise -> creates a new series (status "created").
+    """
+    display = normalize_series_name(raw_name)
+    if not display:
+        raise ValidationError("series name is required")
+    if len(display) > MAX_FIELD_LEN:
+        raise ValidationError(f"series name exceeds {MAX_FIELD_LEN} characters")
+
+    key = display.lower()
+    existing = doujin_repo.find_series_by_normalized(key)
+    if existing:
+        return {"status": "reused", "series": existing}
+
+    if not confirm:
+        candidates = _find_near_duplicate_series(display)
+        if candidates:
+            raise NearDuplicateSeriesError(candidates)
+
+    created = doujin_repo.create_series(display, key)
+    return {"status": "created", "series": created}
+
+
+def delete_series(series_id: int, *, force: bool = False) -> dict | None:
+    """Delete a series. Books referencing it are never silently orphaned:
+    without force=True, deletion is BLOCKED (raises SeriesInUseError) while
+    any book still references it; with force=True, those books' series_id is
+    cleared to NULL (an explicit, visible choice — not a silent side effect)
+    before the series row is removed. Returns None if series_id doesn't
+    exist."""
+    existing = doujin_repo.get_series(series_id)
+    if existing is None:
+        return None
+    book_count = doujin_repo.count_books_for_series(series_id)
+    if book_count > 0:
+        if not force:
+            raise SeriesInUseError(book_count)
+        doujin_repo.clear_series_on_books(series_id)
+    doujin_repo.delete_series(series_id)
+    return {"deleted": True, "cleared_books": book_count if force else 0}

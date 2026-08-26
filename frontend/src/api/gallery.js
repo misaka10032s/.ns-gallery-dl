@@ -33,3 +33,25 @@ export function deleteDoujinLink(folderPath, linkId) {
     { method: 'DELETE' },
   )
 }
+
+export function fetchDoujinBookMeta(folderPath) {
+  return apiRequest('/api/gallery/doujin/book/fetch-meta', {
+    method: 'POST',
+    body: { folder_path: folderPath },
+  })
+}
+
+// 分類 (series) — controlled vocabulary combobox.
+export function searchDoujinSeries(query) {
+  return apiRequest(`/api/gallery/doujin/series?q=${encodeURIComponent(query ?? '')}`)
+}
+
+// Resolves to an existing series (exact case/space-insensitive match),
+// raises on a near-duplicate (error.status === 409, error.payload.candidates)
+// unless confirm=true, or creates a brand-new one.
+export function createOrResolveDoujinSeries(name, confirm = false) {
+  return apiRequest('/api/gallery/doujin/series', {
+    method: 'POST',
+    body: { name, confirm },
+  })
+}

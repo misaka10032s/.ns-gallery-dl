@@ -15,13 +15,17 @@ exec_links:
   - frontend/src/components/gallery/DoujinBookWall.vue
   - frontend/src/components/gallery/DoujinBookReader.vue
   - frontend/src/components/gallery/DoujinBookEditPanel.vue
+  - frontend/src/components/gallery/SeriesCombobox.vue
   - frontend/src/components/gallery/ConfirmDialog.vue
   - frontend/src/components/gallery/GeneralGalleryPanel.vue
   - frontend/src/api/gallery.js
+  - frontend/src/api/client.js
 depends_on:
   - BP-SVC-DOUJIN-1
   - BP-VIEW-GALLERY-1
-origin: "首次入庫於本次 block 1 開發（2026-08-26，worktree feat/doujin-view）"
+origin: "首次入庫於本次 block 1 開發（2026-08-26，worktree feat/doujin-view）；同日追加：
+  移除彩頁欄位、分類改 SeriesCombobox 控制詞彙表元件、名稱/作者/社團加入「⤓ 從站點抓取
+  資料」按鈕 + 來源徽章（見 BP-SVC-DOUJIN-1 的 metadata 抓取設計）。"
 ---
 
 ## 設計說明
@@ -43,11 +47,29 @@ origin: "首次入庫於本次 block 1 開發（2026-08-26，worktree feat/douji
   按鈕在手機上並不好按。**閱讀進度記憶**：`last_page_index` 存在後端（`doujin_books` 表），
   翻頁 500ms 防抖後 PUT 回去、關閉時再存一次一定要成功送出的那次——不是純前端 localStorage，
   換裝置或清瀏覽器快取都還記得看到哪頁。
-- **`DoujinBookEditPanel.vue`**——右側抽屜（375px 下變全螢幕），表單對應使用者要求的全部
-  欄位；頁數欄位預設留白＝自動偵測，填數字才會覆蓋（對應 `page_count_override`）；封面欄位
+- **`DoujinBookEditPanel.vue`**——右側抽屜（375px 下變全螢幕）。**彩頁欄位已移除**（隨
+  `BP-SVC-DOUJIN-1` 的 schema 變更一起拿掉）。名稱/作者/社團三個欄位旁各顯示一個來源徽章
+  （「預設」/「站點資料」/「已編輯」，對應 `<field>_source`），手動編輯過的欄位多一顆
+  「還原自動值」按鈕（送 `null` 清掉 `*_override`）；面板頂部有「⤓ 從站點抓取資料」按鈕
+  （呼叫 `POST /api/gallery/doujin/book/fetch-meta`，只在使用者主動按下時才發網路請求）+
+  抓取狀態文字（成功/被擋/找不到/網路錯誤/沒有可辨識 ID/此來源尚未支援，對應
+  `meta_fetch_status`）；原始資料夾名稱固定顯示在面板最上方，供對照磁碟上的實際資料夾。
+  分類欄位改用 `SeriesCombobox`（見下）。頁數欄位預設留白＝自動偵測，填數字才會覆蓋
+  （對應 `page_count_override`），若站點抓過頁數則多顯示「站點：N 頁」供交叉核對。封面欄位
   是下拉選單，選項就是這本書實際的頁面檔名（伺服器驗證過的合法值集合），不能亂填。連結區塊：
   清單 + 新增表單 + 刪除——刪除一律走 `ConfirmDialog.vue`（**原生 `<dialog>`，不是
   `window.confirm`**，符合叢集規則）。
+- **`SeriesCombobox.vue`**（本輪新增）——分類的控制詞彙表元件，不是自由文字框。輸入時
+  200ms 防抖呼叫 `GET /api/gallery/doujin/series?q=` 篩選既有分類；點一筆既有分類直接套用
+  （不會另外呼叫建立 API）；輸入的字串沒有完全符合的既有分類時顯示「+ 建立「X」」，呼叫
+  `POST /api/gallery/doujin/series`——伺服器回 200（正規化後完全相同，靜默套用既有那筆）
+  或 201（真的建立新的）都直接套用；伺服器回 **409**（近似重複，`error.status===409` +
+  `error.payload.candidates`，見 `frontend/src/api/client.js` 對 `apiRequest` 拋出的
+  `Error` 新增的 `.status`/`.payload`，向後相容——舊呼叫端只讀 `.message` 不受影響）時，
+  面板內顯示候選清單「使用「X」」按鈕（點了直接套用候選、不建立新的）+「仍要建立「X」」
+  按鈕（帶 `confirm:true` 重送，明知故犯地建立一筆近似的）——**碰撞永遠可見，但從不擋人**，
+  對應使用者的原始要求。清除分類用 ✕ 按鈕（送 `series_id: null`，分類是 first-class 的
+  「無」狀態，不是空字串）。
 - **`ConfirmDialog.vue`**——可重用的破壞性操作確認元件，`showModal()`/`close()`，
   Esc 視同取消。
 
@@ -69,3 +91,17 @@ merge-gate 規則），特別看封面牆卡片有沒有擠壓、編輯面板抽
 同 `BP-SVC-DOUJIN-1`「刻意沒做」段——wishlist、hentaiViewer 資料匯入、標籤/LLM、全庫搜尋
 一律 block 2；`impeccable` 完整視覺打磨（teach→shape→craft→audit→critique→polish）尚未
 跑過，目前是「功能完整、可用、通過既有元件的樣式慣例」而非「經過設計系統審過」的狀態。
+分類（系列）**管理頁面沒有做**（刪除系列的 API 存在且行為已定義——見
+`BP-SVC-DOUJIN-1`——但沒有在任何 UI 暴露刪除入口；這輪範圍是「書籍編輯面板內建立/套用
+分類」，不含系列管理）。
+
+### 待使用者/PM 決定的開放問題（誠實記錄，不是我自己決定）
+
+- **exhentai 沒有 id 前綴、也還沒有抓取器**：這個庫裡唯一一個 exhentai 資料夾就是沒有
+  id 前綴的樣本。就算之後要接 exhentai，還需要 gid+token 兩個值，不是單一數字 id ——
+  這條路要怎麼走（要不要接、要不要開放使用者手動貼 gid+token）留給使用者決定。
+- **wnacg 現場檢查後沒有接抓取器**（見 `BP-SVC-DOUJIN-1`）——它的頁面沒有結構化的
+  作者/社團欄位，只有結構化的頁數。要不要只接「頁數交叉核對」（不動名稱/作者/社團），
+  這是一個可以做但這輪沒做的選項，留給使用者決定。
+- **18comic 沒有既有供應器**，接不接、值不值得為它另外處理反機器人門檻，同樣留給使用者
+  決定。

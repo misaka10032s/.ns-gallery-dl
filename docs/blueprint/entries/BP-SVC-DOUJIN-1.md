@@ -15,13 +15,18 @@ decided_date: 2026-08-26
 exec_links:
   - app/config/gallery_modes.py
   - app/services/doujin_service.py
+  - app/services/doujin_meta_service.py
+  - app/providers/sites/nhentai.py
   - app/storage/repositories/doujin_repo.py
   - app/storage/db.py
   - app/api/routes/gallery.py
   - tests/test_doujin_service.py
 depends_on:
   - BP-SVC-GALLERY-1
-origin: "首次入庫於本次 block 1 開發（2026-08-26，worktree feat/doujin-view）"
+origin: "首次入庫於本次 block 1 開發（2026-08-26，worktree feat/doujin-view）；同日兩輪
+  使用者追加決議（同一輪討論，未開新 entry）：(1) 移除彩頁欄位、分類改控制詞彙表 dropdown；
+  (2) 名稱/作者/社團的自動偵測來源從『解析資料夾名稱』改為『站點 metadata 抓取』——資料夾
+  名稱是有損渲染，不是真相來源（使用者原話：「不要用標題分析 因為那部一定有完整資訊」）。"
 ---
 
 ## 設計說明
@@ -33,23 +38,121 @@ origin: "首次入庫於本次 block 1 開發（2026-08-26，worktree feat/douji
 `api/routes/gallery.py`、前端都不用動。`gallery_service.list_categories()` 現在會把
 `mode` 一併塞進每個分類，前端因此不需要自己再維護一份來源清單（見 `BP-VIEW-DOUJIN-1`）。
 
-### 儲存（純新增，未動任何既有 table）
+### 儲存（純新增，未動任何既有 table；本輪對 doujin_books 欄位做了兩次追加調整）
 
-`app/storage/db.py` 的 `init_db()` 新增兩個 `CREATE TABLE IF NOT EXISTS`：
+`app/storage/db.py` 的 `init_db()` 新增三個 `CREATE TABLE IF NOT EXISTS`：
 
+- **`doujin_series`**（本輪新增）：分類（系列）的**控制詞彙表**——書籍存的是
+  `series_id`（可為 NULL＝「沒有分類」，first-class 狀態，不是空字串 sentinel），不是
+  再打一次系列名稱。`name` 是顯示形式（保留使用者原始大小寫/空白排版）；
+  `normalized_name`（trim + 內部連續空白摺成一個空白 + 全小寫）`UNIQUE`，是唯一性判斷的
+  key。改名一個系列會讓所有引用它的書一起變（因為存的是 id，不是字串）。
 - `doujin_books`：PK 是 `folder_path`（相對 `DOWNLOAD_DIR`，如
   `wnacg/100873_[...] さなえの湯(泡)`）——**惰性建立**：一個本子模式來源底下的資料夾
-  「就是」一本書，不管使用者有沒有動過它；只有第一次「觸碰」（開詳情頁 / 編輯 / 加連結）才會
-  真的 INSERT 一列（`doujin_repo.ensure_book`，`INSERT ... ON CONFLICT DO NOTHING`）。
-  欄位對應使用者要求的 名稱/作者/社團/尺寸/彩頁/分類/購買狀態，另外 `page_count`（快取的
-  磁碟頁數）+ `page_count_override`（NULL=不覆蓋，設定則優先於快取值）+ `cover_page`
-  （''=自動用第一頁）+ `last_page_index`（閱讀進度，伺服器端持久化）。
+  「就是」一本書，不管使用者有沒有動過它；只有第一次「觸碰」（開詳情頁 / 編輯 / 加連結 /
+  抓取站點資料）才會真的 INSERT 一列（`doujin_repo.ensure_book`，
+  `INSERT ... ON CONFLICT DO NOTHING`）。**彩頁欄位已於本輪移除**（使用者不要這個欄位，
+  且尚無任何資料——不留隱藏欄位）。**名稱/作者/社團不再各自是一個欄位**，改成
+  `title_override`/`artist_override`/`circle_override`（使用者手動編輯，NULL＝未編輯）
+  + `title_fetched`/`artist_fetched`/`circle_fetched`（站點抓回來的值，NULL＝從未抓過或
+  該次抓取沒有這個欄位）——見下方「名稱/作者/社團的來源」。另有 `page_count`（快取的磁碟
+  頁數）+ `page_count_override`（NULL=不覆蓋，設定則優先於快取值）+ `page_count_fetched`
+  （站點回報的頁數，只作交叉核對，不影響顯示的 `page_count`）+ `cover_page`（''=自動用
+  第一頁）+ `last_page_index`（閱讀進度，伺服器端持久化）+
+  `meta_fetch_status`/`meta_fetched_at`/`meta_source_url`（見下方「抓取結果永遠可見」）。
 - `doujin_book_links`：`UNIQUE(book, url)`，一本書可掛多筆連結（N網/P網/購買網...），
   沒有硬 FK（這個 schema 全域都沒開 `PRAGMA foreign_keys`），但 service 層永遠先
   `ensure_book` 才允許加連結。
 - `db.py:_connect()` 加了一行 `PRAGMA busy_timeout = 5000`——這是既有 schema 的既存漏洞
   （WAL 只保證讀寫並發，不保證兩個寫入者互相等待，沒 timeout 會立刻炸
   "database is locked"），順手補上，跟本子功能本身無關。
+
+### 分類（系列）：dropdown + 近似重複警告，不是自由文字欄位
+
+使用者原話：「分類的要有dropdown 不然錯別字大小寫空格就都分散了」。設計：
+
+- **正規化規則**：`normalize_series_name()` = trim 頭尾空白 + 內部連續空白（含 tab）摺成
+  一個半形空白，**保留原始大小寫**（分類名稱是顯示用的標籤，不是 slug）。唯一性判斷 key
+  是這個正規化結果再轉小寫（`normalized_name`）——所以「東方Project」「  東方Project 」
+  「東方  Project」「東方PROJECT」全部視為同一個系列，自動附加到同一列，不會分裂成多筆
+  （這正是使用者要防的事）。
+- **近似重複警告，不是自動合併也不是擋掉**：正規化後仍不完全相同、但用
+  `difflib.SequenceMatcher` 算出的相似度 ≥ `SERIES_SIMILARITY_THRESHOLD`（0.82，抓
+  打錯字/標點差異，如「東方Proiect」vs「東方Project」）時，`resolve_or_create_series()`
+  丟出 `NearDuplicateSeriesError`（帶候選清單），API 回 `409 {error, candidates}`——前端
+  顯示「你是不是要選這個？」讓使用者挑現有的，或按「仍要建立」帶 `confirm=true` 重送強制
+  新建。不精確比對（差距大於門檻）直接建立，不警告。
+- **刪除系列**：`delete_series(series_id, force=False)`。還有書引用時，不給 force
+  直接 `SeriesInUseError`（API 回 `409 {error: "series_in_use", book_count}`）——**預設
+  阻擋，不靜默孤立**；帶 `force=True` 才會把所有引用它的書 `series_id` 清成 NULL 再刪除，
+  回傳值明確帶 `cleared_books` 數量，讓呼叫端知道動了幾本書。這個決定是本次自己選的
+  （題目要求「決定行為並說明」）：block 1 沒有系列管理頁面（範圍不含），這個 API 是給未來
+  用的，先把行為订清楚。
+
+### 名稱/作者/社團的來源：**沒有解析資料夾名稱**——這是被使用者明確否決的方案
+
+**歷史記錄（誠實記錄一個被推翻的方向）**：本輪一開始依照另一則指示做了一個「解析資料夾
+名稱」的規則引擎（`app/config/doujin_parser_rules.py` + `doujin_service.py` 內的
+`parse_book_folder_name()`），對 522 個 wnacg 資料夾實測有 100% 非空標題、91.6% 抓到
+作者、91.4% 抓到社團。**這個方案已被使用者推翻並整個移除**——使用者原話：「不要用標題分析
+因為那部一定有完整資訊」，理由是資料夾名稱是「有損渲染」，真相來源是原站點本身。
+`doujin_parser_rules.py` 已刪除，`parse_book_folder_name` 已從 `doujin_service.py` 移除，
+沒有留作 fallback。
+
+**現在的設計**：`title`/`artist`/`circle` 的有效值在讀取時即時計算（從不預先合併存
+DB），優先序：`*_override`（手動編輯，永遠贏）> `*_fetched`（站點抓回來的，見下）>
+一個**不存 DB 的**預設值（`title` 預設資料夾名稱本身；`artist`/`circle` 預設空字串——
+跟本功能最初、還沒有解析器/抓取器之前的行為完全一樣）。API 回應同時帶
+`<field>_source`（`"manual"`/`"fetched"`/`"default"`）讓前端知道目前顯示的是哪一層，
+以及 `folder_name`（資料夾原始名稱，永遠可見——找不到磁碟上的資料夾、或懷疑抓到的資料
+有誤時，這是唯一能對照回去的東西）。
+
+**唯一允許讀資料夾名稱的地方**：`doujin_meta_service.extract_gallery_id()`，只抓開頭那串
+數字 ID（`"100873_..."` → `"100873"`），**不解讀其餘任何文字**。這是讀一個識別碼，不是
+分析標題——使用者原話明確區分了這兩件事，且要求「不要超出這個範圍」。
+
+### 站點 metadata 抓取（`app/services/doujin_meta_service.py` + `app/providers/sites/nhentai.py`）
+
+- **只在使用者主動按「抓取」時對單一本書執行**——瀏覽封面牆、開詳情頁都**不**觸發任何網路
+  請求（`list_source_books`/`get_book_detail` 完全唯讀）。批次回填是未來功能，這輪沒做。
+- **哪些來源接了真的抓取器，是逐一實測過的，不是猜的**（2026-08-26 現場驗證）：
+  - **`nhentai`：已接上、已驗證可用。** 擴充既有的
+    `app/providers/sites/nhentai.py`（原本只在下載流程裡抓 `<h1 class="title">` 就丟掉
+    其餘資料）新增 `fetch_gallery_metadata()`：抓 `<span class="pretty">`（乾淨標題，
+    不是原本 `.text` 會拿到的「[circle (artist)] title [tags]」混雜字串——那串正是資料夾
+    名稱本身的來源，不能再拿來當『站點資料』）、`Artists:`/`Groups:` tag-container（結構化
+    作者/社團）、`Pages:` tag-container（結構化頁數，只作交叉核對）。
+  - **`wnacg`：現場檢查後判定不接。** wnacg 的 gallery 頁面 `<title>` 就是跟資料夾名稱
+    同款的方括號混雜字串（`[circle (artist)] title (parody) [tags] - 站名`），**沒有**
+    獨立的作者/社團欄位——接上它等於換個地方重做一次被使用者否決的字串分析。頁面上唯一
+    乾淨的結構化資料是「頁數：17P」，但單獨接頁數交叉核對、不接標題/作者/社團，價值有限，
+    這輪沒做；留給使用者/PM 決定要不要只接頁數交叉核對。
+  - **`18comic`：未接。** `app/providers/sites/` 沒有既有的 18comic 供應器，且該站已知
+    有額外的反機器人/行動 API 金鑰門檻，超出這輪範圍。
+  - **`exhentai`：未接。** 需要 gid+token 兩個值才能抓一個 gallery，不是單一數字 id；
+    而且（見下方覆蓋率）這個庫裡 exhentai 資料夾本來就沒有 id 前綴，就算接了也沒有 id
+    可用。
+  - `doujin_meta_service.SUPPORTED_META_SOURCES` 是唯一決定「這個來源有沒有抓取器」的
+    地方（目前只有 `{"nhentai"}`），配置驅動，跟 `gallery_modes.DOUJINSHI_SOURCES`
+    是同一種模式但**刻意分開**——「是本子模式」跟「有沒有抓取器」是兩個獨立的問題。
+- **速率限制 + 重試**：同一站點的請求間隔至少 **3 秒**（process-wide，`threading.Lock`
+  + 單調時鐘），這是 750 本書 × 逐本抓取如果沒有節流會做的事——避免使用者說的「被當機器人
+  擋下來」。網路錯誤/例外重試 **2 次**（共 3 次嘗試），backoff **5 秒、15 秒**；
+  404／被擋（no `#info` block，通常是挑戰頁）**不重試**，直接回報，因為重試不會讓
+  Cloudflare 挑戰自己過去。
+- **Cookie 沿用既有機制，不寫死憑證**：`doujin_meta_service._scraper_with_cookies()`
+  透過 `cookies_repo.find_cookie(domain)` 拿使用者已經在 Cookie 管理頁註冊的 Netscape
+  格式 cookie 檔案（沒有就不帶 cookie 繼續跑，壞掉的 cookie 檔案也不能讓抓取整個爆掉）——
+  這正是要避免的舊 `hentaiViewer` 反面案例（`hentaiCollector.py` 把 2022 年就過期的
+  帳密明文寫死在原始碼裡）。
+- **抓取結果永遠可見，不會靜默失敗**：每次抓取無論成功與否都會寫
+  `meta_fetch_status`（`ok`/`blocked`/`not_found`/`network_error`/`no_gallery_id`/
+  `unsupported_source`）+ `meta_fetched_at` + `meta_source_url`（成功時）到書籍列——
+  「從沒抓過」跟「抓過但失敗」在 API 回應裡是可以分辨的兩種狀態，不會長得一樣。
+- **手動編輯永遠贏，抓取永遠不會蓋掉它**：`fetch_book_metadata()` 只寫 `*_fetched` 欄位，
+  從不碰 `*_override`——跟 `page_count`/`page_count_override` 同一套機制（cache 值 +
+  獨立的手動覆蓋欄位，NULL＝未覆蓋），這次是題目要求「重用已經做過的機制」，所以三個欄位
+  都套用同一個形狀，不是另外發明一套。
 
 ### 頁數推導（使用者要求：不必手動輸入）
 
