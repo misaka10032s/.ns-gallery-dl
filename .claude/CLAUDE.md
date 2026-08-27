@@ -144,6 +144,60 @@ original wrapper script didn't distinguish from a clean pass). Fixed by adding e
 API usage, all clean) — and `check_import_cycles.py` now fails loud instead of silently passing
 if this regresses. **Do not remove those `__init__.py` files.**
 
+**G1/G2 fail-open fix (2026-08-27 — closed a cluster-wide gap, see
+`D:/backup/CSIA/@PM/state/runs/CROSS-REPO-mypy-failopen.md`):** neither `mypy` nor `ruff`
+crashes on a broken/missing `[tool.mypy]` / `[tool.ruff]` config — both can silently fall back
+to bare defaults (mypy) or hard-fail with empty stdout that used to be misread as "0 findings"
+(ruff), and the old checker scripts only ever read stdout, never the return code or stderr.
+**Reproduced here concretely** (measured, not assumed): planting a syntactically-valid but
+unrecognized key under `[tool.mypy]` made mypy print a config-parse warning to stderr while
+`check_mypy_baseline.py` silently reported `[G2] PASS` unchanged — the config problem was
+invisible. The same corruption under `[tool.ruff]` made ruff exit 2 with **empty stdout**,
+which the old script coerced to `"[]"` (via `proc.stdout or "[]"`), so all 49 baselined ruff
+violations "vanished" at once and `check_ruff_baseline.py` reported `[G1] PASS — 0 total
+violation(s)`. Both are now fixed, same two-part shape in both `check_mypy_baseline.py` and
+`check_ruff_baseline.py`:
+1. **Validate the config before trusting the run.** A static `tomllib` check confirms
+   `pyproject.toml` exists, parses as TOML, and carries the relevant `[tool.mypy]` /
+   `[tool.ruff]` table — BEFORE the tool even runs. Both checkers also now pass an explicit
+   `--config-file` (mypy) / `--config` (ruff) instead of relying on silent auto-discovery.
+   That alone is not sufficient (a syntactically valid but semantically bad option, e.g. a
+   typo'd key, passes static TOML validation) — each script also checks the tool's own signal
+   after running: mypy's config diagnostics are matched in stderr (mypy prefixes every
+   config-loading problem with the config file's path, empty on a clean run); ruff's config/tool
+   errors are caught via its own return-code contract (0 clean / 1 violations found / 2
+   tool-or-config error — any other code is now a hard FAIL, never silently read as "0
+   findings"). A config problem detected either way is `[G1]`/`[G2]` **FAIL, exit 2**, naming
+   the exact diagnostic — never a silent PASS.
+2. **A vanished baseline finding is now a FAILURE, not an ignorable note.** Previously, if a
+   finding present in `mypy-baseline.json`/`ruff-baseline.json` stopped appearing, the gate
+   printed `note: N baseline error(s) no longer exist — consider shrinking the baseline` and
+   still returned PASS. That silence is exactly what a future silent-profile-disable mechanism
+   (not just a broken TOML — any way the check could stop applying) would produce, so it is now
+   `[G1]`/`[G2]` **FAIL, exit 1**, naming every vanished finding. **This is the durable half** —
+   it catches the disappearance regardless of cause, not only the specific TOML-corruption
+   mechanism part 1 targets.
+   - **To legitimately shrink a baseline now** (a real fix landed, or a deliberate baseline
+     realignment): confirm *why* the finding vanished first, then run
+     `py -3.11 quality-gates/run.py g1 --update-baseline` (or `g2`) to re-snapshot. Do **not**
+     run `--update-baseline` reflexively just to unblock a FAIL without checking the cause —
+     that reintroduces exactly the blind spot this fix closes.
+   - **Cost to routine development, stated plainly:** a normal commit that happens to
+     incidentally fix one of the pre-existing baselined findings as a side effect (not the
+     commit's main goal) will now FAIL until `--update-baseline` is run — this is an intended
+     tradeoff, not a bug. The ruff baseline (49 entries) was realigned right before this fix
+     landed (2026-08-27); that realignment is unaffected (it's the current committed baseline,
+     not a vanished-vs-baseline diff), but any *future* incidental fix to one of those 49 needs
+     the same explicit re-snapshot step.
+   - **Measured non-reproduction, for the record:** a full TOML syntax error (duplicate
+     `[tool.mypy]` key) or deleting `pyproject.toml` outright does NOT, on its own, cause a
+     vanishing-findings PASS in this repo's *current* mypy config — losing
+     `ignore_missing_imports = true` only ever ADDS spurious `import-untyped` findings here
+     (this repo's only non-default mypy setting is a suppressor, not a strictness gate), so
+     those two specific corruptions were already visible as an (unexplained) FAIL even before
+     this fix. Relying on that coincidence was the actual risk — part 1's stderr/returncode
+     checks make the FAIL explicit and correctly attributed instead of accidental.
+
 ### Frontend — `cd frontend && npm run gate:<g1|g3|g4|l0|l1>`
 
 | Gate | What | Scope | Baseline (2026-08-27) |
