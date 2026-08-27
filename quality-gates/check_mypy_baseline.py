@@ -42,6 +42,26 @@ required:
   3. Vanished baseline findings now FAIL instead of printing an ignorable note (see `main()`)
      — the durable half: it catches ANY future mechanism that silently disables the profile,
      not just a broken TOML.
+
+ORDERING FIX (2026-08-27 — a second fail-open introduced BY the fix above; TWO separate defects
+in the original `main()`, both confirmed by direct execution here, not inferred from line
+numbers): (1) the plain-run path checked `if resolved: ... return 1` BEFORE it ever checked
+`if new:` — so a commit that simultaneously fixed one baselined error AND introduced an
+unrelated new one was told ONLY about the resolved finding; (2) separately and more subtly, the
+`--update-baseline` branch ran BEFORE the baseline was even loaded/diffed — it wrote `current`
+to disk unconditionally, so it never saw `new` at all, in ANY state, not just after a plain-run
+FAIL. Both were reproduced concretely 2026-08-27 in a throwaway worktree, fully reverted after:
+fixed the real baselined `download_service.py|valid-type` finding (bare `callable` used as a
+type annotation instead of `Callable`) while planting a new `features.py|assignment` type
+error in the same run — the plain run reported ONLY the resolved finding, and running
+`--update-baseline` in that exact state absorbed the planted new error without a word (a
+follow-up run then PASSed with it baked in as pre-existing debt). Fixed via the shared
+`lib.baseline.report_and_decide()` (see its docstring — used identically by G1/G4 so the three
+gates cannot drift apart on this again): `new`/`resolved` are computed ONCE, up front, before
+either the plain-run or the `--update-baseline` branch can act; a plain run FAILs and reports
+BOTH when either is non-empty; `--update-baseline` REFUSES (FAIL, zero file change) only when
+BOTH are non-empty — a new-only debt-accept or a resolved-only shrink still proceeds, now
+naming every finding it accepts or removes rather than only a count.
 """
 from __future__ import annotations
 
@@ -155,41 +175,19 @@ def main() -> int:
         return 2
 
     current = sorted({_identity(i) for i in items})
-
-    if update_mode:
-        baseline_lib.write(BASELINE_PATH, current)
-        print(f"[G2] baseline updated — {len(current)} error(s) recorded at {BASELINE_PATH.name}.")
-        return 0
-
-    baseline = baseline_lib.load(BASELINE_PATH)
-    new, resolved = baseline_lib.diff(current, baseline)
-
-    if resolved:
-        print(f"[G2] FAIL — {len(resolved)} baselined mypy error(s) no longer exist:", file=sys.stderr)
-        for v in resolved:
-            print(f"  - {v}", file=sys.stderr)
-        print(
-            "\nA vanished baseline finding means either a genuine fix or that the type-check "
-            "profile silently stopped applying (the fail-open hole this check exists to "
-            "close). If you confirmed this is a deliberate improvement, run "
-            "`py -3.11 quality-gates/run.py g2 --update-baseline` to shrink the baseline — "
-            "never run it just to make this pass without checking why the finding vanished.",
-            file=sys.stderr,
-        )
-        return 1
-
-    if new:
-        print(f"[G2] FAIL — {len(new)} NEW mypy error(s) not present in the baseline:", file=sys.stderr)
-        for v in new:
-            print(f"  - {v}", file=sys.stderr)
-        print(
-            f"\nBaseline: {BASELINE_PATH.name} ({len(baseline)} pre-existing error(s), unaffected).",
-            file=sys.stderr,
-        )
-        return 1
-
-    print(f"[G2] PASS — {len(current)} total error(s), 0 new vs baseline ({len(baseline)} pre-existing).")
-    return 0
+    # Decision logic (new-vs-resolved ordering, --update-baseline refusal) is centralized in
+    # lib/baseline.report_and_decide() — shared IDENTICALLY by G1/G2/G4 so the three gates
+    # cannot drift apart on this again. See that function's docstring and each checker's
+    # "ORDERING FIX" module docstring for the reproduction that made this the shared shape.
+    return baseline_lib.report_and_decide(
+        gate_tag="[G2]",
+        noun="mypy error",
+        profile_desc="type-check profile",
+        current=current,
+        baseline_path=BASELINE_PATH,
+        update_mode=update_mode,
+        update_baseline_cmd="py -3.11 quality-gates/run.py g2 --update-baseline",
+    )
 
 
 if __name__ == "__main__":

@@ -28,16 +28,35 @@ this codebase relies on namespace-package semantics, verified via
 `grep -rn "pkgutil|__path__|iter_modules" app` = 0 hits; `python -c "import app.main"` and the
 full pytest suite both still pass after the addition). Do not remove those `__init__.py`
 files — doing so silently reintroduces this exact vacuous-PASS bug.
+
+ORDERING FIX (2026-08-27 — standardized with check_ruff_baseline.py / check_mypy_baseline.py's
+"ORDERING FIX", same fail-open class, TWO separate defects confirmed by direct execution here):
+(1) the original `main()` only ever printed `resolved` as an ignorable stdout "note" (never
+failing on it, unlike G1/G2's pre-fix `return 1`); (2) separately and more subtly,
+`--update-baseline` wrote `current` straight to the baseline with NO check of `new` at all, in
+ANY state — not only after a failed plain run. Both were reproduced concretely 2026-08-27 in a
+throwaway worktree, fully reverted after: removed the real baselined
+`app.providers.ytdlp.provider -> app.services.path_service` edge while planting a new illegal
+`app.config.features -> app.storage.db` edge in the same run — the plain run's vanished entry
+printed only as a footer note (it still failed, but only because `new` alone already failed
+it), and running `--update-baseline` in that exact state absorbed the new violation without a
+word (a subsequent run then PASSed with it baked in as if pre-existing). Fixed the same way as
+G1/G2 — via the shared `lib.baseline.report_and_decide()` (see its docstring): `new`/`resolved`
+are computed ONCE, up front, before either the plain-run or the `--update-baseline` branch can
+act; a plain run FAILs and reports BOTH when either is non-empty; `--update-baseline` REFUSES
+(FAIL, zero file change) only when BOTH are non-empty — a new-only debt-accept or a
+resolved-only shrink still proceeds, now naming every finding it accepts or removes rather than
+only a count.
 """
 from __future__ import annotations
 
-import json
 import re
 import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from lib import baseline as baseline_lib
 from lib.git_diff import ensure_utf8_stdio
 
 ensure_utf8_stdio()
@@ -86,41 +105,26 @@ def _parse_violations(output: str) -> list[str]:
     return sorted(set(violations))
 
 
-def _load_baseline() -> list[str]:
-    if not BASELINE_PATH.exists():
-        return []
-    return json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
-
-
 def main() -> int:
     update_mode = "--update-baseline" in sys.argv[1:]
     output = _run_lint_imports()
     current = _parse_violations(output)
-
-    if update_mode:
-        BASELINE_PATH.write_text(json.dumps(current, indent=2) + "\n", encoding="utf-8")
-        print(f"[G4] baseline updated — {len(current)} violation(s) recorded at {BASELINE_PATH.name}.")
-        return 0
-
-    baseline = _load_baseline()
-    new = [v for v in current if v not in baseline]
-    resolved = [v for v in baseline if v not in current]
-
-    if resolved:
-        print(f"[G4] note: {len(resolved)} baseline violation(s) no longer exist — consider re-running with --update-baseline to shrink the baseline:")
-        for v in resolved:
-            print(f"  - {v}")
-
-    if new:
-        print(f"[G4] FAIL — {len(new)} NEW import violation(s) not present in the baseline:", file=sys.stderr)
-        for v in new:
-            print(f"  - {v}", file=sys.stderr)
-        print(f"\nBaseline: {BASELINE_PATH.name} ({len(baseline)} pre-existing violation(s), unaffected).", file=sys.stderr)
-        print(f"\nFull import-linter output:\n{output}", file=sys.stderr)
-        return 1
-
-    print(f"[G4] PASS — {len(current)} total violation(s), 0 new vs baseline ({len(baseline)} pre-existing).")
-    return 0
+    # Decision logic (new-vs-resolved ordering, --update-baseline refusal) is centralized in
+    # lib/baseline.report_and_decide() — shared IDENTICALLY by G1/G2/G4 so the three gates
+    # cannot drift apart on this again. See that function's docstring and this module's
+    # "ORDERING FIX" docstring for the reproduction that made this the shared shape.
+    # extra_on_fail: the full raw import-linter output, useful for tracing which line each
+    # violation edge came from — only ever printed on a normal-run FAIL, same as before.
+    return baseline_lib.report_and_decide(
+        gate_tag="[G4]",
+        noun="import violation",
+        profile_desc="layers contract",
+        current=current,
+        baseline_path=BASELINE_PATH,
+        update_mode=update_mode,
+        update_baseline_cmd="py -3.11 quality-gates/run.py g4 --update-baseline",
+        extra_on_fail=f"\nFull import-linter output:\n{output}",
+    )
 
 
 if __name__ == "__main__":
