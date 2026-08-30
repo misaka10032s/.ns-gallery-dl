@@ -300,12 +300,18 @@ async def _process_and_react(message: discord.Message, coros: list) -> None:
         await _react(message, DISCORD_EMOJI_FAILED, _FB_FAILED)
 
 
-async def _cmd_download_channel(trigger: discord.Message) -> None:
-    await _react(trigger, DISCORD_EMOJI_QUEUED, _FB_QUEUED)
+async def _scan_and_process_channel(channel, skip_message_id: int | None = None) -> tuple[int, int]:
+    """Scan `channel` history (limit=1000, oldest_first=True — same call `$d` has
+    always used) and process each unprocessed message's attachments/urls/embeds,
+    reacting per-message exactly like `_cmd_download_channel` did before this was
+    extracted. `skip_message_id` lets `$d` exclude its own trigger message; the
+    on_ready backfill passes `None` since it has no trigger. Returns
+    `(total_ok, total_failed)`. Behaviour here is deliberately unchanged from what
+    `$d` already did — this is a pure extraction, not a rewrite."""
     tasks: list[tuple[discord.Message, list]] = []
     seen_urls: set[str] = set()
-    async for message in trigger.channel.history(limit=1000, oldest_first=True):
-        if message.author == client.user or message.id == trigger.id or _already_processed(message):
+    async for message in channel.history(limit=1000, oldest_first=True):
+        if message.author == client.user or message.id == skip_message_id or _already_processed(message):
             continue
         coros = []
         guild_name = _guild_name(message.channel)
@@ -350,6 +356,12 @@ async def _cmd_download_channel(trigger: discord.Message) -> None:
             await _react(message, DISCORD_EMOJI_DONE, _FB_DONE)
             await _react(message, DISCORD_EMOJI_FAILED, _FB_FAILED)
 
+    return total_ok, total_failed
+
+
+async def _cmd_download_channel(trigger: discord.Message) -> None:
+    await _react(trigger, DISCORD_EMOJI_QUEUED, _FB_QUEUED)
+    total_ok, total_failed = await _scan_and_process_channel(trigger.channel, skip_message_id=trigger.id)
     await _unreact(trigger, DISCORD_EMOJI_QUEUED, _FB_QUEUED)
     if total_failed == 0:
         await _react(trigger, DISCORD_EMOJI_DONE, _FB_DONE)
@@ -360,13 +372,86 @@ async def _cmd_download_channel(trigger: discord.Message) -> None:
         await _react(trigger, DISCORD_EMOJI_FAILED, _FB_FAILED)
 
 
+_backfill_running: set[int] = set()
+
+
+async def _backfill_channel(channel_id: int) -> None:
+    """Backfill one channel using the same scan+process path as `$d`. Guards against
+    a concurrent second backfill of the SAME channel (e.g. a fast reconnect firing
+    on_ready again while the previous backfill is still running); does not raise on
+    a channel the bot can't read (Forbidden / not found) — logs and skips instead."""
+    if channel_id in _backfill_running:
+        print(f"[Bot] Backfill already running for channel {channel_id}, skipping.")
+        return
+    _backfill_running.add(channel_id)
+    try:
+        channel = client.get_channel(channel_id)
+        if channel is None:
+            try:
+                channel = await client.fetch_channel(channel_id)
+            except discord.NotFound:
+                print(f"[Bot] Backfill skip: channel {channel_id} not found.")
+                return
+            except discord.Forbidden:
+                print(f"[Bot] Backfill skip: no permission to access channel {channel_id}.")
+                return
+            except discord.HTTPException as exc:
+                print(f"[Bot] Backfill skip: failed to fetch channel {channel_id}: {exc}")
+                return
+        try:
+            total_ok, total_failed = await _scan_and_process_channel(channel)
+        except discord.Forbidden:
+            print(f"[Bot] Backfill skip: no permission to read history in channel {channel_id}.")
+            return
+        except Exception as exc:
+            print(f"[Bot] Backfill error in channel {channel_id}: {exc}")
+            return
+        print(f"[Bot] Backfill done for channel {channel_id}: {total_ok} ok, {total_failed} failed.")
+    finally:
+        _backfill_running.discard(channel_id)
+
+
+async def _backfill_all_channels() -> None:
+    """Backfill every configured channel — runs on every on_ready (initial login
+    AND every re-IDENTIFY after a drop) so messages posted while offline are not
+    missed."""
+    for channel_id in DISCORD_CHANNEL_IDS:
+        await _backfill_channel(channel_id)
+
+
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _track_background_task(coro) -> asyncio.Task:
+    """`asyncio.create_task` alone only holds a WEAK reference to the created
+    Task inside the event loop — nothing else in this module was keeping the
+    Task object alive, so it could be garbage-collected mid-flight (a
+    documented asyncio hazard). Keep a strong reference in `_background_tasks`
+    and drop it via a done-callback once the task finishes."""
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
+
+
 @client.event
 async def on_ready() -> None:
     print(f"[Bot] Logged in as {client.user}")
     if DISCORD_CHANNEL_IDS:
         print(f"[Bot] Monitoring channels: {sorted(DISCORD_CHANNEL_IDS)}")
+        _track_background_task(_backfill_all_channels())
     else:
         print("[Bot] Warning: DISCORD_CHANNEL_IDS is not set.")
+
+
+@client.event
+async def on_disconnect() -> None:
+    print("[Bot] Disconnected from Discord gateway.")
+
+
+@client.event
+async def on_resumed() -> None:
+    print("[Bot] Resumed Discord gateway session.")
 
 
 @client.event

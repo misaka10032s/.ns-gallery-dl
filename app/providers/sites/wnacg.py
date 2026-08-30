@@ -30,24 +30,66 @@ HEADERS = {
 }
 
 
-def _remove_illegal_chars(filename: str) -> str:
-    cleaned = re.sub(r'[\\/*?:",<>|]', "", filename)
-    cleaned = cleaned.strip(". ")
-    return cleaned[:150]
+def _sanitize_chars(value: str) -> str:
+    cleaned = re.sub(r'[\\/*?:",<>|]', "", value)
+    return cleaned.strip(". ")
 
 
-def _config_link(soup: BeautifulSoup, scraper) -> tuple[str | None, str | None]:
+def _remove_illegal_chars(filename: str, max_length: int = 150) -> str:
+    """Sanitize a string for use as a path component — plain-slice truncation.
+
+    Used ONLY for the gallery title (no extension to preserve). Do NOT reuse this
+    for the archive filename — see `_sanitize_archive_filename` below, which is
+    deliberately a SEPARATE function so extension-preserving truncation never
+    silently changes this one's (title's) behaviour.
+    """
+    return _sanitize_chars(filename)[:max_length]
+
+
+def _sanitize_archive_filename(filename: str, max_length: int = 150) -> str:
+    """Sanitize an archive filename for use as a path component, preserving a
+    trailing extension when truncating (dot followed by <=10 chars, e.g.
+    `.zip`/`.7z`/`.rar`) — `download_wnacg` needs the suffix intact to pick the
+    right extraction branch. Deliberately NOT shared with `_remove_illegal_chars`
+    (the gallery-title sanitizer): a title that happens to end in something
+    extension-shaped must still get a plain slice, not this treatment.
+    """
+    cleaned = _sanitize_chars(filename)
+    if len(cleaned) <= max_length:
+        return cleaned
+    stem, dot, suffix = cleaned.rpartition(".")
+    if dot and 0 < len(suffix) <= 10:
+        keep = max_length - len(suffix) - 1
+        if keep > 0:
+            return f"{stem[:keep]}.{suffix}"
+    return cleaned[:max_length]
+
+
+def _parse_config(soup: BeautifulSoup) -> tuple[str, str, str] | None:
+    """Parse the page's `const CONFIG = {...}` script block.
+
+    Returns `(worker_api, file_key, file_name)`, or `None` if the block is absent
+    or doesn't match the expected shape (page layout changed).
+    """
     scripts = soup.find_all("script")
     config_script = next((script.string for script in scripts if script.string and "const CONFIG = {" in script.string), None)
     if not config_script:
-        return None, None
+        return None
     try:
         worker_api = re.search(r'WORKER_API:\s*"(.*?)"', config_script).group(1)
         file_key = re.search(r'FILE_KEY:\s*"(.*?)"', config_script).group(1)
         file_name = re.search(r'FILE_NAME:\s*"(.*?)"', config_script).group(1)
     except AttributeError:
-        return None, None
+        return None
+    return worker_api, file_key, file_name
 
+
+def _config_link(worker_api: str, file_key: str, file_name: str, scraper) -> str | None:
+    """POST to the Cloudflare Worker API for the primary download link.
+
+    Any network/HTTP/JSON failure (incl. a Cloudflare challenge 403 on the worker
+    endpoint) is left to propagate — the caller degrades to `_fallback_link`.
+    """
     response = scraper.post(
         worker_api,
         json={"file_key": file_key, "file_name": file_name},
@@ -62,17 +104,20 @@ def _config_link(soup: BeautifulSoup, scraper) -> tuple[str | None, str | None]:
     response.raise_for_status()
     data = response.json()
     if not data.get("success"):
-        return None, None
-    return data.get("url"), file_name
+        return None
+    return data.get("url")
 
 
-def _fallback_link(soup: BeautifulSoup, gallery_url: str) -> tuple[str | None, str | None]:
+def _fallback_link(soup: BeautifulSoup, file_name: str | None) -> tuple[str | None, str | None]:
+    """Server-2 fallback link. `file_name` should come from the page's CONFIG block
+    (passed in by the caller) — the old `p.download_filename` element this used to
+    scrape no longer exists on the live page, which silently produced the literal
+    `"wnacg_archive.zip"` for every download."""
     server2 = soup.find("span", string=re.compile(r"備用線路\s*\(Server 2\)"))
     if server2:
         link = server2.find_parent("a")
         if link and link.get("href"):
-            filename = soup.find("p", class_="download_filename")
-            return urljoin("https:", link.get("href")), filename.text.strip() if filename else "wnacg_archive.zip"
+            return urljoin("https:", link.get("href")), file_name or "wnacg_archive.zip"
     return None, None
 
 
@@ -106,12 +151,22 @@ def download_wnacg(url: str, output_root: Path) -> str:
         return "failed"
 
     soup = BeautifulSoup(response.text, "lxml")
-    download_link, archive_filename = _config_link(soup, scraper)
+    config = _parse_config(soup)
+    download_link: str | None = None
+    archive_filename: str | None = config[2] if config else None
+    if config:
+        worker_api, file_key, file_name = config
+        try:
+            download_link = _config_link(worker_api, file_key, file_name, scraper)
+        except Exception as exc:
+            print(f"[wnacg] CONFIG API 取得下載連結失敗，改用備用線路: {exc}")
+            download_link = None
     if not download_link:
-        download_link, archive_filename = _fallback_link(soup, gallery_url)
+        download_link, archive_filename = _fallback_link(soup, archive_filename)
     if not download_link or not archive_filename:
         return "failed"
 
+    archive_filename = _sanitize_archive_filename(archive_filename)
     archive_path = download_dir / archive_filename
     if not archive_path.exists():
         try:
