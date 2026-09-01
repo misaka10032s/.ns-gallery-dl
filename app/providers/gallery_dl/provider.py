@@ -14,6 +14,7 @@ from app.config.settings import normalize_domain
 from app.domain.enums import JobStatus, Provider
 from app.domain.jobs import DownloadResult
 from app.providers.cookies.resolver import resolve_cookie_file
+from app.providers.sites import wnacg_health
 from app.providers.sites.bahamut import download_bahamut
 from app.providers.sites.nhentai import download_nhentai
 from app.providers.sites.pixiv import get_pixiv_refresh_token
@@ -168,8 +169,10 @@ def download(url: str, tokens: dict, max_retries: int = 5, retry_delay: int = 5,
 
     if domain == "wnacg.com":
         root = provider_root(Provider.GALLERY_DL, domain)
-        status = download_wnacg(url, root)
-        return DownloadResult(status=JobStatus(status), provider=Provider.GALLERY_DL, domain=domain, download_path=str(root))
+        status, error = download_wnacg(url, root)
+        result = DownloadResult(status=JobStatus(status), provider=Provider.GALLERY_DL, domain=domain, download_path=str(root), error=error)
+        wnacg_health.record_result(success=result.status in (JobStatus.SUCCESS, JobStatus.SKIPPED))
+        return result
 
     if domain in {"forum.gamer.com.tw", "gamer.com.tw"}:
         root = provider_root(Provider.GALLERY_DL, domain)

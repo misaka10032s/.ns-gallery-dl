@@ -93,6 +93,12 @@ DISCORD_EMOJI_QUEUED = os.environ.get("DISCORD_EMOJI_QUEUED", "⏳")
 DISCORD_EMOJI_DONE = os.environ.get("DISCORD_EMOJI_DONE", "✅")
 DISCORD_EMOJI_FAILED = os.environ.get("DISCORD_EMOJI_FAILED", "❌")
 
+# Consecutive wnacg-provider failures (across ALL entry points — web UI, queue,
+# bot) before app.providers.sites.wnacg_health fires ONE Discord alert for the
+# current outage episode. A single transient failure must never alert, so the
+# default is intentionally > 1.
+WNACG_ALERT_THRESHOLD = int(os.environ.get("WNACG_ALERT_THRESHOLD", "3") or "3")
+
 BOT_DOMAIN_ALLOWLIST = {normalize_domain(item) for item in _csv_set(os.environ.get("BOT_DOMAIN_ALLOWLIST", ""))}
 BOT_DOMAIN_DENYLIST = {normalize_domain(item) for item in _csv_set(os.environ.get("BOT_DOMAIN_DENYLIST", ""))}
 

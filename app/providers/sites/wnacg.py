@@ -121,23 +121,28 @@ def _fallback_link(soup: BeautifulSoup, file_name: str | None) -> tuple[str | No
     return None, None
 
 
-def download_wnacg(url: str, output_root: Path) -> str:
+def download_wnacg(url: str, output_root: Path) -> tuple[str, str]:
+    """Returns `(status, error)` — `error` is `""` on success, otherwise a
+    zh-TW reason distinguishing WHICH stage failed (see module docstring-level
+    comment above each branch). Every prior `return "failed"` site threw its
+    reason away entirely; this is the only change in behaviour here — no
+    download/retry/degradation logic is touched."""
     scraper = cloudscraper.create_scraper()
     gallery_id_match = re.search(r"aid-(\d+)", url)
     if not gallery_id_match:
-        return "failed"
+        return "failed", "URL 不含有效的 aid（相簿 ID），無法辨識為 wnacg 相簿連結"
 
     gallery_id = gallery_id_match.group(1)
     try:
         response = scraper.get(url, headers=HEADERS)
         response.raise_for_status()
-    except Exception:
-        return "failed"
+    except Exception as exc:
+        return "failed", f"作品頁面請求失敗: {exc}"
 
     soup = BeautifulSoup(response.text, "lxml")
     title_el = soup.find("title")
     if not title_el:
-        return "failed"
+        return "failed", "作品頁面未找到標題（頁面結構可能已變更）"
 
     title = _remove_illegal_chars(title_el.text.strip().split("-")[0])
     download_dir = output_root / f"{gallery_id}_{title}"
@@ -147,24 +152,30 @@ def download_wnacg(url: str, output_root: Path) -> str:
     try:
         response = scraper.get(gallery_url, headers=HEADERS)
         response.raise_for_status()
-    except Exception:
-        return "failed"
+    except Exception as exc:
+        return "failed", f"下載頁面請求失敗: {exc}"
 
     soup = BeautifulSoup(response.text, "lxml")
     config = _parse_config(soup)
     download_link: str | None = None
     archive_filename: str | None = config[2] if config else None
+    config_error: str | None = None
     if config:
         worker_api, file_key, file_name = config
         try:
             download_link = _config_link(worker_api, file_key, file_name, scraper)
         except Exception as exc:
-            print(f"[wnacg] CONFIG API 取得下載連結失敗，改用備用線路: {exc}")
+            config_error = f"CONFIG API（主線路）取得下載連結失敗: {exc}"
+            print(f"[wnacg] {config_error}，改用備用線路")
             download_link = None
     if not download_link:
         download_link, archive_filename = _fallback_link(soup, archive_filename)
     if not download_link or not archive_filename:
-        return "failed"
+        if config_error:
+            return "failed", f"{config_error}；備用線路（Server 2）也找不到下載連結"
+        if config:
+            return "failed", "CONFIG API 未回傳有效下載連結，且備用線路（Server 2）也找不到下載連結"
+        return "failed", "頁面缺少 CONFIG 設定，且找不到備用線路（Server 2）下載連結"
 
     archive_filename = _sanitize_archive_filename(archive_filename)
     archive_path = download_dir / archive_filename
@@ -179,8 +190,8 @@ def download_wnacg(url: str, output_root: Path) -> str:
                         continue
                     handle.write(chunk)
                     pbar.update(len(chunk))
-        except Exception:
-            return "failed"
+        except Exception as exc:
+            return "failed", f"檔案下載失敗: {exc}"
 
     suffix = archive_path.suffix.lower()
     try:
@@ -193,7 +204,7 @@ def download_wnacg(url: str, output_root: Path) -> str:
         elif suffix == ".rar" and rarfile:
             with rarfile.RarFile(archive_path, "r") as archive:
                 archive.extractall(path=download_dir)
-    except Exception:
-        return "failed"
+    except Exception as exc:
+        return "failed", f"解壓縮失敗: {exc}"
 
-    return "success"
+    return "success", ""
