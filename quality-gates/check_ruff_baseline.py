@@ -45,6 +45,25 @@ gate reported `[G1] PASS — 0 total violation(s)`. Two parts, both required:
      incidentally fix one of those 49 as a side effect will now need an explicit
      `--update-baseline` before it can land. That is the intended tradeoff (see
      .claude/CLAUDE.md `## Code quality gates`), not a regression.
+
+ORDERING FIX (2026-08-27 — a second fail-open introduced BY the fix above; TWO separate defects
+in the original `main()`, both confirmed by direct execution here, not inferred from line
+numbers): (1) the plain-run path checked `if resolved: ... return 1` BEFORE it ever checked
+`if new:` — so a commit that simultaneously fixed one baselined violation AND introduced an
+unrelated new one was told ONLY about the resolved finding; (2) separately and more subtly, the
+`--update-baseline` branch ran BEFORE the baseline was even loaded/diffed — it wrote `current`
+to disk unconditionally, so it never saw `new` at all, in ANY state, not just after a plain-run
+FAIL. Both were reproduced concretely 2026-08-27 in a throwaway worktree, fully reverted after:
+fixed the real baselined `app/main.py|F401` finding while planting a new
+`app/domain/enums.py|F401` in the same run — the plain run reported ONLY the resolved finding,
+and running `--update-baseline` in that exact state absorbed the planted new finding without a
+word (a follow-up run then PASSed with it baked in as pre-existing debt). Fixed via the shared
+`lib.baseline.report_and_decide()` (see its docstring — used identically by G2/G4 so the three
+gates cannot drift apart on this again): `new`/`resolved` are computed ONCE, up front, before
+either the plain-run or the `--update-baseline` branch can act; a plain run FAILs and reports
+BOTH when either is non-empty; `--update-baseline` REFUSES (FAIL, zero file change) only when
+BOTH are non-empty — a new-only debt-accept or a resolved-only shrink still proceeds, now
+naming every finding it accepts or removes rather than only a count.
 """
 from __future__ import annotations
 
@@ -131,42 +150,19 @@ def main() -> int:
         return 2
 
     current = sorted({_identity(i) for i in items})
-
-    if update_mode:
-        baseline_lib.write(BASELINE_PATH, current)
-        print(f"[G1] baseline updated — {len(current)} violation(s) recorded at {BASELINE_PATH.name}.")
-        return 0
-
-    baseline = baseline_lib.load(BASELINE_PATH)
-    new, resolved = baseline_lib.diff(current, baseline)
-
-    if resolved:
-        print(f"[G1] FAIL — {len(resolved)} baselined ruff violation(s) no longer exist:", file=sys.stderr)
-        for v in resolved:
-            print(f"  - {v}", file=sys.stderr)
-        print(
-            "\nA vanished baseline violation means either a genuine fix or that the lint "
-            "profile silently stopped applying (the fail-open hole this check exists to "
-            "close). If you confirmed this is a deliberate improvement (or an intentional "
-            "baseline realignment), run `py -3.11 quality-gates/run.py g1 --update-baseline` "
-            "to shrink the baseline — never run it just to make this pass without checking "
-            "why the violation vanished.",
-            file=sys.stderr,
-        )
-        return 1
-
-    if new:
-        print(f"[G1] FAIL — {len(new)} NEW ruff violation(s) not present in the baseline:", file=sys.stderr)
-        for v in new:
-            print(f"  - {v}", file=sys.stderr)
-        print(
-            f"\nBaseline: {BASELINE_PATH.name} ({len(baseline)} pre-existing violation(s), unaffected).",
-            file=sys.stderr,
-        )
-        return 1
-
-    print(f"[G1] PASS — {len(current)} total violation(s), 0 new vs baseline ({len(baseline)} pre-existing).")
-    return 0
+    # Decision logic (new-vs-resolved ordering, --update-baseline refusal) is centralized in
+    # lib/baseline.report_and_decide() — shared IDENTICALLY by G1/G2/G4 so the three gates
+    # cannot drift apart on this again. See that function's docstring and each checker's
+    # "ORDERING FIX" module docstring for the reproduction that made this the shared shape.
+    return baseline_lib.report_and_decide(
+        gate_tag="[G1]",
+        noun="ruff violation",
+        profile_desc="lint profile",
+        current=current,
+        baseline_path=BASELINE_PATH,
+        update_mode=update_mode,
+        update_baseline_cmd="py -3.11 quality-gates/run.py g1 --update-baseline",
+    )
 
 
 if __name__ == "__main__":

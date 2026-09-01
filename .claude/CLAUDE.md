@@ -198,6 +198,62 @@ violation(s)`. Both are now fixed, same two-part shape in both `check_mypy_basel
      this fix. Relying on that coincidence was the actual risk — part 1's stderr/returncode
      checks make the FAIL explicit and correctly attributed instead of accidental.
 
+**G1/G2/G4 guard-ordering fix (2026-08-27 — closed a SECOND fail-open introduced BY the fix
+above):** point 2 above made a vanished baseline finding `FAIL, exit 1` on a plain run — but
+the original `main()` had TWO separate defects, both confirmed by direct execution here (not
+inferred from reading line numbers):
+1. **Plain-run ordering.** `check_ruff_baseline.py`/`check_mypy_baseline.py` checked
+   `if resolved: ... return 1` BEFORE it ever checked `if new:`. `check_import_cycles.py` (G4)
+   had the mirror gap: it only ever printed `resolved` as an ignorable stdout note, never
+   failing on it at all.
+2. **The `--update-baseline` path itself, in ALL three gates** — the deeper defect: the
+   `--update-baseline` branch ran BEFORE the baseline was even loaded/diffed against `current`,
+   so it wrote `current` to disk unconditionally with NO check of `new` whatsoever, in ANY
+   state — not only after a plain-run FAIL.
+
+Net effect: a commit that simultaneously fixed one baselined finding AND introduced an
+unrelated new one was told ONLY about the resolved finding on a plain run, and — separately —
+running the gate's own suggested `--update-baseline` remedy in that same state silently baked
+the unreviewed new finding into the baseline, hiding it permanently. **Reproduced concretely
+for all three, both defects** (2026-08-27, in a throwaway worktree, fully reverted after, every
+touched file hash-verified back to `HEAD`):
+- G1: fixed the real baselined `app/main.py|F401` finding while planting a new
+  `app/domain/enums.py|F401` — the plain run reported only the resolved finding, and running
+  `--update-baseline` in that exact state absorbed the new one without a word.
+- G2: fixed the real baselined `download_service.py|valid-type` finding (bare `callable` used
+  as a type annotation instead of `Callable`) while planting a new `features.py|assignment`
+  type error — same outcome.
+- G4: removed the real baselined `app.providers.ytdlp.provider -> app.services.path_service`
+  edge while planting a new illegal `app.config.features -> app.storage.db` cross-layer
+  import — same outcome (the vanished entry printed only as a footer note; `--update-baseline`
+  absorbed the new violation).
+
+**Fix, one consistent shape across all three gates — a single shared function
+(`quality-gates/lib/baseline.report_and_decide()`), not three near-copies, so they cannot drift
+apart on this again:**
+1. `new`/`resolved` are computed ONCE, up front, before EITHER the plain-run branch or the
+   `--update-baseline` branch can act.
+2. A plain run FAILs (exit 1) if EITHER set is non-empty, and reports **both** — never only one.
+3. `--update-baseline` REFUSES to write (exit 1, zero file change) **only when BOTH `new` and
+   `resolved` are non-empty** — that is the one state where a plain re-snapshot is genuinely
+   ambiguous (it would silently accept the new finding as if it were the same kind of reviewed
+   decision as the shrink). A **new-only** run (deliberately accepting a finding as debt) or a
+   **resolved-only** run (shrinking for a genuine fix) still PROCEEDS — this is a real,
+   documented, legitimate use of `--update-baseline` (each checker's own docstring: "a
+   deliberate, reviewed cleanup (**or knowingly accepting a new one**)") — but now names every
+   finding it is about to accept or remove, not just a count. Deliberately a hard refusal
+   rather than "print a warning and write anyway" — a printed warning can go unread in a
+   non-interactive/CI invocation (a scripted `--update-baseline && git commit`); a refusal
+   cannot be missed.
+
+All four run-states proven for G1, G2, and G4 (new-only / vanished-only / both-at-once /
+neither), exit codes confirmed for each, PLUS `--update-baseline`'s behavior verified
+separately in every state: new-only and resolved-only both succeed (exit 0) and name the
+finding they act on; both-at-once refuses (exit 1, baseline file byte-for-byte unchanged). See
+the "ORDERING FIX" docstring block at the top of each of the three checker scripts, and
+`report_and_decide()`'s own docstring in `quality-gates/lib/baseline.py`, for the exact
+reproduction evidence.
+
 ### Frontend — `cd frontend && npm run gate:<g1|g3|g4|l0|l1>`
 
 | Gate | What | Scope | Baseline (2026-08-27) |
