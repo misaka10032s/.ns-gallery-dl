@@ -23,7 +23,16 @@ export default defineConfig({
     // ever gate inputs.
     include: ['src/**/*.{test,spec}.{js,mjs,cjs}'],
     exclude: ['node_modules/**', 'dist/**', 'coverage/**', 'tmp/**'],
-    passWithNoTests: true, // this project has 0 test files today — 0 tests must be a PASS, not a broken gate
+    // G3 vacuous-gate fix (see .claude/CLAUDE.md `## Code quality gates`): this used to be
+    // `passWithNoTests: true` with the justification "0 test files today, 0 tests must be a
+    // PASS". That made a zero-test-file result indistinguishable from a genuinely green suite —
+    // `npm run gate:g3` reported PASS forever, vacuously, guarding nothing. Real tests now exist
+    // (src/views/JobsView.spec.js et al.), so that justification no longer applies: from this
+    // point on, matching zero test files can only mean either every test was deleted (a real
+    // regression) or the `include` glob above broke — both cases must hard-FAIL, never pass
+    // silently. Leaving this at vitest's own default (false) is deliberate, not an oversight —
+    // do not re-add `passWithNoTests: true` without adding a NEW gate that separately checks
+    // "at least one test file exists," or the vacuous-pass defect just moves one layer over.
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
