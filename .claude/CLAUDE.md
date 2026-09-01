@@ -87,7 +87,7 @@ py -3.11 -m pytest -q                             # G3 — 12 test files, 197 te
 ```bash
 cd frontend
 npm run lint    # eslint . (repo-wide, will show the pre-existing 541-warning backlog — G1 itself is diff-scoped, see below)
-npm run test    # vitest run (0 test files today — passes vacuously; write tests here as the frontend grows)
+npm run test    # vitest run (JobsView.spec.js et al.; a zero-test-file result now FAILS the gate — see G3 below)
 ```
 
 ## Code quality gates
@@ -259,9 +259,21 @@ reproduction evidence.
 | Gate | What | Scope | Baseline (2026-08-27) |
 |---|---|---|---|
 | G1 | ESLint, diff-LINE-scoped (only messages on lines the diff actually touched) | 541 pre-existing warnings repo-wide (all `eslint-plugin-vue` stylistic rules — `max-attributes-per-line`, `singleline-html-element-content-newline`, `html-self-closing`; 0 errors) made a bare `--max-warnings=0` unusable, so this gate uses the same line-diff scoping misaka_site2.0 uses for the same reason, at a smaller scale |
-| G3 | `vitest run` (green) + `@vitest/eslint-plugin` `expect-expect` on changed test files | 0 test files today — passes vacuously; becomes real the moment the first test is added |
+| G3 | `vitest run` (green, `passWithNoTests: false`) + `@vitest/eslint-plugin` `expect-expect` on changed test files | `src/views/JobsView.spec.js` (4 tests, real assertions on `jobs.error` rendering + the search filter) — a zero-matched-test-file result now hard-FAILs (fixed 2026-09-01, see below); grows as more tests are added |
 | G4 | `madge` circular-import check on `src/` | 0 pre-existing cycles |
 | `l1` | = `l0` (no G5/G6 — see below) | |
+
+**G3 vacuous-gate finding (fixed 2026-09-01):** `frontend/vite.config.js`'s `test` block set
+`passWithNoTests: true` with the justification "0 test files today, must still be a PASS". That
+made `npm run gate:g3`/`vitest run` report PASS on a matched-zero-test-files result exactly the
+same as a genuinely green suite — indistinguishable, and it stayed that way since the gate was
+installed (2026-08-27) with nothing ever guarding a frontend regression. Fixed by (1) writing the
+first real frontend test (`src/views/JobsView.spec.js`, not a placeholder — see file for what it
+asserts) and (2) removing the `passWithNoTests: true` override (left at vitest's own default,
+`false`), so a future "all tests deleted" state hard-fails instead of passing. Proven both ways:
+deleting the test file made `gate:g3:test` exit non-zero with `No test files found`; restoring it
+went back to green. **Do not re-add `passWithNoTests: true`** without also adding a gate that
+separately checks "at least one test file exists" — otherwise this defect just moves one layer.
 
 **Dropped for this repo, with evidence (not faked):**
 - **G2 (typecheck)** — this frontend has **zero TypeScript**: 0 `.ts`/`.tsx` files, no
@@ -272,9 +284,10 @@ reproduction evidence.
   inference without any annotations gives false assurance, not real protection. Converting the
   frontend to TypeScript is a real option but is a 26-file rewrite outside this task's scope
   (minimal-diff rule) — revisit if/when the frontend adopts TS.
-- **G5 (diff coverage) / G6 (mutation)** — this frontend has **zero test files** (vs the Python
-  side's 12 files / 197 tests). A coverage or mutation-kill threshold against zero tests is
-  theatre, not signal — skip until real tests exist, then reconsider both.
+- **G5 (diff coverage) / G6 (mutation)** — this frontend has one test file today (vs the Python
+  side's 12 files / 197 tests). A coverage or mutation-kill threshold against a single file is
+  still theatre, not signal — skip until real coverage exists across more components, then
+  reconsider both.
 
 ### Enabling the pre-commit hook
 ```bash
