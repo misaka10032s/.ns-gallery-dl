@@ -84,18 +84,30 @@ async function updateDownloaders() {
           <span class="header-chip__label">{{ pendingCount }}</span>
         </div>
       </div>
-      <button class="btn btn--ghost btn--small app-header__refresh" type="button" @click="refreshOverview">
+      <button
+        class="btn btn--ghost btn--small app-header__refresh"
+        type="button"
+        aria-label="重新整理"
+        @click="refreshOverview"
+      >
         <span class="app-header__refresh-icon" aria-hidden="true">↻</span>
-        <span class="app-header__refresh-text">重新整理</span>
+        <span
+          class="app-header__refresh-text"
+          aria-hidden="true"
+        >重新整理</span>
       </button>
       <button
         class="btn btn--ghost btn--small app-header__refresh app-header__downloader-update"
         type="button"
+        aria-label="更新下載器"
         :disabled="store.isLoading('downloader-update')"
         @click="updateDownloaders"
       >
         <span class="app-header__refresh-icon" aria-hidden="true">⇪</span>
-        <span class="app-header__refresh-text">更新下載器</span>
+        <span
+          class="app-header__refresh-text"
+          aria-hidden="true"
+        >更新下載器</span>
       </button>
       <div class="sync-text">
         <span class="sync-text__full">最後同步：{{ syncLabel }}</span>

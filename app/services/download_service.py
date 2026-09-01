@@ -181,13 +181,20 @@ def download_request(request: JobRequest, tokens: dict) -> DownloadResult:
 
 
 def history_payload(url: str, source: JobSource, result: DownloadResult) -> dict:
+    # `history_entries` has no dedicated `error` column (see storage/db.py) —
+    # surface it as a top-level `meta.error` key instead of leaving it buried
+    # only inside `meta.attempts[].error`, so a history reader can tell a CF
+    # block from a typo'd URL from a full disk without parsing the attempts list.
+    meta = dict(result.metadata or {})
+    if result.error and "error" not in meta:
+        meta["error"] = result.error
     return {
         "url": normalize_url(url),
         "result": result.status.value if isinstance(result.status, JobStatus) else str(result.status),
         "source": source.value,
         "provider": result.provider.value if isinstance(result.provider, Provider) else str(result.provider),
         "download_path": result.download_path,
-        "meta": result.metadata,
+        "meta": meta,
     }
 
 

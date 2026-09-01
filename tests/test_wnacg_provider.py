@@ -238,9 +238,10 @@ class TestDownloadWnacgDegradation:
         )
         monkeypatch.setattr(wnacg.cloudscraper, "create_scraper", lambda: fake_scraper)
 
-        result = wnacg.download_wnacg("https://www.wnacg.com/photos-index-aid-380688.html", tmp_path)
+        status, error = wnacg.download_wnacg("https://www.wnacg.com/photos-index-aid-380688.html", tmp_path)
 
-        assert result == "success"
+        assert status == "success"
+        assert error == ""
         assert len(fake_scraper.post_calls) == 1  # the worker API was actually attempted
 
         gallery_dirs = list(tmp_path.iterdir())
@@ -270,10 +271,127 @@ class TestDownloadWnacgDegradation:
         )
         monkeypatch.setattr(wnacg.cloudscraper, "create_scraper", lambda: fake_scraper)
 
-        result = wnacg.download_wnacg("https://www.wnacg.com/photos-index-aid-380688.html", tmp_path)
+        status, error = wnacg.download_wnacg("https://www.wnacg.com/photos-index-aid-380688.html", tmp_path)
 
-        assert result == "success"
+        assert status == "success"
+        assert error == ""
         assert fake_scraper.post_calls == []  # worker API never attempted
 
         download_dir = next(tmp_path.iterdir())
         assert (download_dir / "wnacg_archive.zip").exists()
+
+
+# ──────────────────────────────────────────────────────────
+# download_wnacg — failure legibility (Task 1): every distinct failure site
+# must return a DIFFERENT, non-empty error string, not just "failed".
+# ──────────────────────────────────────────────────────────
+
+
+class TestDownloadWnacgFailureReasons:
+    def test_url_without_aid_reports_no_download_and_reraises_nothing(self, tmp_path: Path):
+        status, error = wnacg.download_wnacg("https://www.wnacg.com/not-a-gallery-url.html", tmp_path)
+        assert status == "failed"
+        assert "aid" in error
+
+    def test_work_page_fetch_failure_is_distinguishable_from_download_page_failure(self, tmp_path: Path, monkeypatch):
+        fake_scraper = _FakeScraper(
+            get_responses=[_FakeResponse(raise_exc=requests.exceptions.HTTPError("403 Client Error"))],
+        )
+        monkeypatch.setattr(wnacg.cloudscraper, "create_scraper", lambda: fake_scraper)
+
+        status, error = wnacg.download_wnacg("https://www.wnacg.com/photos-index-aid-1.html", tmp_path)
+
+        assert status == "failed"
+        assert "作品頁面" in error
+        assert "403" in error
+
+    def test_download_page_fetch_failure_has_its_own_distinct_message(self, tmp_path: Path, monkeypatch):
+        fake_scraper = _FakeScraper(
+            get_responses=[
+                _FakeResponse(text=GALLERY_HTML),
+                _FakeResponse(raise_exc=requests.exceptions.HTTPError("500 Server Error")),
+            ],
+        )
+        monkeypatch.setattr(wnacg.cloudscraper, "create_scraper", lambda: fake_scraper)
+
+        status, error = wnacg.download_wnacg("https://www.wnacg.com/photos-index-aid-1.html", tmp_path)
+
+        assert status == "failed"
+        assert "下載頁面" in error
+        assert "500" in error
+
+    def test_missing_title_element_reports_page_structure_message(self, tmp_path: Path, monkeypatch):
+        fake_scraper = _FakeScraper(get_responses=[_FakeResponse(text="<html><body>no title here</body></html>")])
+        monkeypatch.setattr(wnacg.cloudscraper, "create_scraper", lambda: fake_scraper)
+
+        status, error = wnacg.download_wnacg("https://www.wnacg.com/photos-index-aid-1.html", tmp_path)
+
+        assert status == "failed"
+        assert "標題" in error
+
+    def test_config_failure_plus_missing_fallback_reports_both_routes_exhausted(self, tmp_path: Path, monkeypatch):
+        """Cloudflare 403 on the worker API AND no Server 2 anchor on the page —
+        the worst case: BOTH routes are gone. The error must name the CONFIG
+        API failure reason, not just say "failed"."""
+        fake_scraper = _FakeScraper(
+            get_responses=[_FakeResponse(text=GALLERY_HTML), _FakeResponse(text=DOWNLOAD_INDEX_HTML)],
+            post_responses=[_FakeResponse(raise_exc=requests.exceptions.HTTPError("403 Client Error"))],
+        )
+        monkeypatch.setattr(wnacg.cloudscraper, "create_scraper", lambda: fake_scraper)
+        monkeypatch.setattr(wnacg, "_fallback_link", lambda soup, file_name: (None, None))
+
+        status, error = wnacg.download_wnacg("https://www.wnacg.com/photos-index-aid-1.html", tmp_path)
+
+        assert status == "failed"
+        assert "CONFIG API" in error
+        assert "備用線路" in error
+
+    def test_no_config_and_no_fallback_reports_page_missing_config_message(self, tmp_path: Path, monkeypatch):
+        no_config_html = DOWNLOAD_INDEX_HTML.replace(
+            'const CONFIG = {\n  WORKER_API: "https://d1.wcdn.date/api/generate-link",\n  FILE_KEY: "abc123",\n  FILE_NAME: "我的合集.zip"\n};',
+            "",
+        ).replace('<a href="//dl1.wn01.download/down/123/abc.zip"><span>備用線路 (Server 2)</span></a>', "")
+        fake_scraper = _FakeScraper(get_responses=[_FakeResponse(text=GALLERY_HTML), _FakeResponse(text=no_config_html)])
+        monkeypatch.setattr(wnacg.cloudscraper, "create_scraper", lambda: fake_scraper)
+
+        status, error = wnacg.download_wnacg("https://www.wnacg.com/photos-index-aid-1.html", tmp_path)
+
+        assert status == "failed"
+        assert "CONFIG" in error
+        assert "備用線路" in error
+
+    def test_archive_download_failure_reports_distinct_message(self, tmp_path: Path, monkeypatch):
+        fake_scraper = _FakeScraper(
+            get_responses=[
+                _FakeResponse(text=GALLERY_HTML),
+                _FakeResponse(text=DOWNLOAD_INDEX_HTML),
+                _FakeResponse(raise_exc=requests.exceptions.ConnectionError("timeout")),
+            ],
+            post_responses=[_FakeResponse(json_data={"success": True, "url": "https://example.com/file.zip"})],
+        )
+        monkeypatch.setattr(wnacg.cloudscraper, "create_scraper", lambda: fake_scraper)
+
+        status, error = wnacg.download_wnacg("https://www.wnacg.com/photos-index-aid-1.html", tmp_path)
+
+        assert status == "failed"
+        assert "檔案下載失敗" in error
+
+    def test_all_five_distinct_failure_sites_never_share_a_message(self, tmp_path: Path, monkeypatch):
+        """Sanity pin for the task's core requirement: the user must be able to
+        tell every failure case apart from the history alone — so no two
+        distinct failure sites may ever produce an identical error string."""
+        cases: list[tuple[str, str]] = []
+
+        status, error = wnacg.download_wnacg("https://www.wnacg.com/no-aid-here.html", tmp_path)
+        cases.append((status, error))
+
+        fake_scraper = _FakeScraper(get_responses=[_FakeResponse(raise_exc=requests.exceptions.HTTPError("x"))])
+        monkeypatch.setattr(wnacg.cloudscraper, "create_scraper", lambda: fake_scraper)
+        cases.append(wnacg.download_wnacg("https://www.wnacg.com/photos-index-aid-1.html", tmp_path))
+
+        fake_scraper = _FakeScraper(get_responses=[_FakeResponse(text="<html><body>x</body></html>")])
+        monkeypatch.setattr(wnacg.cloudscraper, "create_scraper", lambda: fake_scraper)
+        cases.append(wnacg.download_wnacg("https://www.wnacg.com/photos-index-aid-1.html", tmp_path))
+
+        errors = [error for _, error in cases]
+        assert len(errors) == len(set(errors)), f"duplicate error messages across distinct failure sites: {errors}"
