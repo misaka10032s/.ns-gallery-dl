@@ -20,6 +20,8 @@ revisions:
     summary: "commit f2718f1：cookie 變更端點（POST/PUT/DELETE /api/cookies）加上同源（Origin/Referer）CSRF 防護，`tests/test_csrf_protection.py` 6 案例覆蓋"
   - date: 2026-07-23
     summary: "blueprint seeding 核對：@PM registry 目前仍記載「Cookie 變更 API — 無 auth/CSRF 保護」為待辦，但現行程式碼（app/api/routes/misc.py `_check_same_origin`）已於 2026-06-20 修好——registry 記載已過期，本條目以程式碼現況為準；registry 應於下次維護同步"
+  - date: 2026-09-02
+    summary: "分支 `fix/auth-failure-handling`（審查中）新增 `DELETE /api/cookies/<domain>/cooldown`（手動解除登入失效冷卻，不動 cookie jar，同源防護，冪等），且 `save_cookie()`／`delete_cookie()` 會自動解除該網域冷卻——見 `BP-SVC-AUTH-COOLDOWN-1`"
 ---
 
 ## 設計說明
@@ -43,6 +45,9 @@ revisions:
   功能旗標控制是否啟用整組端點）。
 - `POST`/`PUT`/`DELETE /api/cookies`：**寫入端點皆先過 `_check_same_origin()`**
   （`BP-CORE-SECURITY-1`），非同源請求回 403。
+- `DELETE /api/cookies/<domain>/cooldown`：手動解除登入失效冷卻，**完全不動 cookie
+  jar**；同樣過同源防護；冪等（`cleared` 欄位說明是否真的解除了什麼）。分支
+  `fix/auth-failure-handling` 新增，審查中——見 `BP-SVC-AUTH-COOLDOWN-1`。
 - `GET /api/auth/pixiv`：只回傳 `{"has_refresh_token": bool}`，不含 token 本身。
 
 ### 誠實現況 —— registry 記載已過期，此為本次盤點的重要修正

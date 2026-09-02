@@ -18,6 +18,8 @@ revisions:
     summary: "commit f2718f1：`PRAGMA journal_mode=WAL` 於每次連線建立時執行，允許讀寫並發，降低多執行緒「database is locked」錯誤風險"
   - date: 2026-07-23
     summary: "blueprint seeding 核對：registry 現行仍記載 WAL「未啟用」為待辦，但程式碼（`app/storage/db.py:23`）確認已啟用——registry 記載已過期，本條目以程式碼現況為準"
+  - date: 2026-09-02
+    summary: "分支 `fix/auth-failure-handling`（審查中）新增第五張表 `auth_cooldown`（PRIMARY KEY domain）與 `auth_cooldown_repo`——設計與 6 小時 TTL 見 `BP-SVC-AUTH-COOLDOWN-1`。注意：該分支較早一輪曾把此表實際建到站主正式 `data/app.db`（零列，未動既有資料），決定保留不 drop"
 ---
 
 ## 設計說明
@@ -34,6 +36,9 @@ revisions:
   見 `BP-SVC-HISTORY-1` 的誠實現況說明）。
 - `cookie_entries`：cookie 檔案註冊表（`UNIQUE(domain, provider, file_path)`）。
 - `downloader_state`：`BP-SVC-UPDATER-1` 的 reactive 更新 cooldown 狀態。
+- `auth_cooldown`：登入失效冷卻，**一列一個網域**（不是一列一個 provider——同一網域
+  可能被 gallery-dl 與 yt-dlp 都試過，且共用同一份 cookie 檔）。見
+  `BP-SVC-AUTH-COOLDOWN-1`。分支 `fix/auth-failure-handling` 新增，審查中。
 - 索引：`jobs(status, id)`、`history_entries(event_date DESC)`、
   `history_entries(domain)`、`cookie_entries(domain, provider)`。
 
