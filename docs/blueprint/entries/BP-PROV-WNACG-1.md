@@ -29,3 +29,44 @@ origin: "`app/providers/sites/wnacg.py` 首次入庫於 Build ns-media-hub unifi
 `venv`（若要精確判斷，需查 `requirements.txt` 內容，非本次程式碼盤點範圍）。
 沒有針對本檔的獨立 pytest 覆蓋；`download/wnacg/` 目錄下有真實下載內容作為功能存在的
 旁證，但不構成結構化測試紀錄，故不填 `tests:` 區塊。
+
+## 錯誤訊息遮蔽（2026-09-02 加入）
+
+`_sanitize_error()` 負責在下載失敗訊息進入 `jobs.error` / `history_entries.meta.error`
+（前端 HistoryView / JobsView 會直接顯示）之前，把敏感片段拔掉。目前遮蔽的範圍：
+
+- URL 的 **query string**（`?token=…` 之類的簽章參數）
+- URL 的 **fragment**（`#access_token=…`）
+- URL 的 **userinfo**（`https://user:pass@host/…`）
+- 本機**絕對路徑**（呼叫端以 `paths=` 傳入者，含 Windows `OSError.__str__()`
+  會把反斜線加倍的變體）
+- urllib3 那種**無 scheme** 的 `/path?query` 形狀
+
+保留（刻意不遮）：HTTP 狀態碼、主機名、port、路徑、urllib3 的 `(Caused by …)` 原因。
+這些是站主自己排查失敗時唯一的線索，遮掉會讓錯誤訊息失去用途。
+
+### 已知可接受殘留風險 — 路徑段中的簽章（站主 2026-09-02 決定）
+
+若某個下載服務把簽章**放在 URL 路徑裡**（例如
+`https://cdn.example.com/dl/AKIA…SECRET/檔名.zip`，S3／R2 風格），那段簽章**不會被遮蔽**，
+會原封不動出現在歷史紀錄的錯誤訊息上。
+
+- **技術上為何如此**：遮蔽器只拔 query／fragment／userinfo，路徑段整段保留。
+- **為何不修**：站主在 2026-09-02 明確選擇「不遮，寫成已知可接受風險」。遮掉路徑
+  等於連檔名一起遮掉，而檔名是站主判斷「是哪一個檔案下載失敗」的主要依據；
+  這是單機自用工具（127.0.0.1，無外部觀眾），權衡後可讀性優先。
+- **邊界**：本條僅限「簽章位於路徑段」。query／fragment／userinfo／本機絕對路徑
+  仍必須遮蔽，未來任何改動不得放寬那四項。
+- **另一個先天限制（非本條決定，記錄用）**：不含 URL 形狀的**裸 token**
+  （例如被回顯的 `Authorization: Bearer …` 標頭）無法用 URL 規則遮蔽。目前
+  `requests` / `cloudscraper` 都不會把請求標頭寫進例外的 `str()`，故實務上不可達；
+  但因此本函式只能描述為「遮蔽 **URL 攜帶的**憑證」，不可描述為「遮蔽憑證」。
+
+### 稽核紀錄
+
+- 2026-09-01 首版遮蔽器上線（分支 `feat/render-history-error`）。
+- 2026-09-02 opus 級獨立安全審查建構並實際執行 34 組破解樣本，找出 5 個缺陷：
+  下載寫檔站點漏傳 `paths=`（絕對路徑外洩，已證實可觸發）、三個 return 站點完全未經
+  遮蔽（含 CONFIG API 簽章連結鑄造路徑）、正則大小寫敏感、`_PATH_QUERY_RE` 前置
+  lookbehind 過嚴、`_strip_userinfo()` 在密碼含 `/` 時會輸出**錯誤的主機名**。
+  五項全部修正（commit `b91e523`）；路徑段簽章一項依上述決定不修，改記於本條。
