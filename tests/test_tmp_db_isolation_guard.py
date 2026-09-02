@@ -58,3 +58,27 @@ class TestGuardStaysGreenWhenIsolated:
         assert assert_db_paths_isolated(db_module) is None
         assert db_module.DB_FILE.resolve() != _REAL_DB_FILE.resolve()
         assert db_module.LEGACY_HISTORY_FILE.resolve() != _REAL_LEGACY_HISTORY_FILE.resolve()
+
+
+class TestWidenedConnectGuardFiresRegardlessOfFixtureUse:
+    """fix-round-2 (B2): assert_db_paths_isolated() alone only ever fired
+    for a test that explicitly called it (i.e. only tmp_db users). The
+    2026-09-02 incident was two NEW tests that never requested tmp_db at
+    all, so that check never ran for them. The real, durable fix is
+    tests/conftest.py's autouse `_isolate_every_test_from_the_real_database`
+    fixture, which wraps app.storage.db._connect() (the single choke point
+    every read/write goes through) for EVERY test unconditionally — this
+    class proves that wrap actually fires, by deliberately re-pointing
+    DB_FILE at the real production path AFTER the autouse fixture has
+    already run for this test, and confirming the wrapped _connect() still
+    refuses rather than silently opening the real file."""
+
+    def test_probe_connect_guard_fires_on_real_db_file_when_deliberately_repointed(self, monkeypatch):
+        # This test itself runs entirely inside the autouse isolation
+        # fixture (it applies to every test, unconditionally) — so this
+        # monkeypatch deliberately UNDOES that isolation for DB_FILE only,
+        # to prove the connect-time wrap catches it independently, not
+        # merely because the autouse fixture happened to keep it isolated.
+        monkeypatch.setattr(db_module, "DB_FILE", _REAL_DB_FILE)
+        with pytest.raises(RuntimeError, match="production database"):
+            db_module._connect()

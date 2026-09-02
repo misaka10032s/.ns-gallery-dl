@@ -128,6 +128,31 @@ def init_db() -> None:
                     last_checked_at TEXT DEFAULT ''
                 );
 
+                -- Auth-failure cooldown (app/domain/auth_cooldown.py): one row per
+                -- DOMAIN (never per-provider — gallery-dl and yt-dlp can both be tried
+                -- for the same domain, e.g. x.com/facebook.com in
+                -- app.config.settings.MULTI_PROVIDER_DOMAINS, and both would retry
+                -- against the SAME cookie file, so the cooldown is shared across
+                -- providers for that domain). Written the instant a download failure
+                -- is classified AUTH (app.domain.auth_failure.classify) — the site
+                -- just rejected a credentialed request, so no job for this domain
+                -- should try again with credentials until cooldown_until has passed.
+                -- last_classified_error is the SANITIZED (app.domain.error_sanitizer)
+                -- text that triggered the cooldown, kept only for operator visibility
+                -- (phase 1b UI) — never raw, never a credential value. This table is
+                -- SQLite-backed (not in-memory) so the cooldown survives across
+                -- separate processes: `-s` and `-b` launched as two separate `dl.cmd`
+                -- invocations are two OS processes that do not share Python globals,
+                -- but both open the same data/app.db file (see app/main.py, this
+                -- app's Gotchas section on why DB state, not memory, is the only
+                -- thing that reliably crosses that boundary).
+                CREATE TABLE IF NOT EXISTS auth_cooldown (
+                    domain TEXT PRIMARY KEY,
+                    cooldown_until TEXT NOT NULL,
+                    last_classified_error TEXT DEFAULT '',
+                    updated_at TEXT NOT NULL
+                );
+
                 -- Controlled vocabulary for 分類 (series). A book references a row
                 -- here by id, never a re-typed string — that is the whole point:
                 -- a typo/case/spacing slip can no longer silently fork one series

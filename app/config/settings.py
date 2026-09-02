@@ -77,6 +77,39 @@ MULTI_PROVIDER_DOMAINS = {
     "x.com",
 }
 
+# Rebrand/alias pairs WITHIN MULTI_PROVIDER_DOMAINS that are the SAME site
+# under two spellings, not two different sites — twitter.com was renamed to
+# x.com; fb.watch is Facebook's own short-link domain for the same account.
+# normalize_domain() deliberately does NOT collapse these: cookie file
+# naming (app.services.cookie_service._cookie_file_name) and the
+# cookie_entries registry stay keyed on the caller's literal, un-aliased
+# domain, unaffected by this map. Only the auth-failure cooldown
+# (app.domain.auth_cooldown) needs the two spellings folded into one
+# identity — see cooldown_domain_key() below for why.
+DOMAIN_COOLDOWN_ALIASES: dict[str, str] = {
+    "twitter.com": "x.com",
+    "fb.watch": "facebook.com",
+}
+
+
+def cooldown_domain_key(domain: str) -> str:
+    """Canonical auth-failure-cooldown key for `domain` (already
+    normalize_domain()'d by the caller): collapses a known rebrand alias
+    (DOMAIN_COOLDOWN_ALIASES) onto one spelling.
+
+    Without this, app.domain.auth_cooldown.in_cooldown() /
+    record_auth_failure() / clear_cooldown() each key their SQLite row on
+    whatever spelling the caller happened to pass — a job URL's literal
+    hostname for in_cooldown()/record_auth_failure(), the owner's UI/API
+    domain field for clear_cooldown() (via cookie_service.save_cookie() /
+    delete_cookie()). Those two are not guaranteed to agree: a cooldown
+    armed while a job hit a "twitter.com" URL would then survive the owner
+    re-seeding a cookie under "x.com" (or vice versa), because
+    clear_cooldown("x.com") and the stored row keyed "twitter.com" are, by
+    SQLite's PRIMARY KEY, two unrelated rows. Used ONLY by
+    app.domain.auth_cooldown — nowhere else needs this collapse."""
+    return DOMAIN_COOLDOWN_ALIASES.get(domain, domain)
+
 YTDLP_DOMAINS = {
     "facebook.com",
     "fb.watch",
