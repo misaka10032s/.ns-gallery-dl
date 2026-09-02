@@ -49,6 +49,22 @@
   margin-top: 0.35rem;
   color: $red-700;
   font-size: 0.82rem;
+  // JobsView's use of this class sits inside a `<td class="break-all">`
+  // ancestor, which is the ONLY thing that keeps a long unbroken error
+  // string (a URL/token embedded in the message) from forcing the page
+  // wider than the viewport there. HistoryView's `.table-error` div has no
+  // such ancestor and no wrapping rule of its own, so it overflowed at
+  // 375px (measured: body.scrollWidth 922 vs clientWidth 375). Setting a
+  // wrap rule directly on the class (not just the ancestor) fixes both call
+  // sites and any future one. `overflow-wrap: anywhere` (not `word-break:
+  // break-all`) — a fresh reviewer measured character-by-character that
+  // `break-all` breaks ordinary words mid-word (`…te/api/generat⏎e-link`)
+  // while `overflow-wrap: anywhere` fixes the same 375px overflow with ZERO
+  // mid-word breaks and an identical line count to having no rule at all.
+  // For JobsView this is still effectively a no-op: its `.table-error` sits
+  // inside a `<td class="break-all">` ancestor, so the ancestor's
+  // `word-break: break-all` still governs wrapping there unchanged.
+  overflow-wrap: anywhere;
 }
 
 .dashboard-current {
