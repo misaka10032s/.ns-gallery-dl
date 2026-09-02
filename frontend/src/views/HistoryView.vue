@@ -363,6 +363,12 @@ onBeforeUnmount(() => {
                     <span>{{ item.domain || hostnameFromUrl(item.url) }}</span>
                     <span>{{ item.download_path || '尚未記錄下載路徑' }}</span>
                   </div>
+                  <div
+                    v-if="item.result === 'failed' && item.meta && item.meta.error"
+                    class="table-error"
+                  >
+                    {{ item.meta.error }}
+                  </div>
                 </div>
 
                 <div class="history-item__actions">
