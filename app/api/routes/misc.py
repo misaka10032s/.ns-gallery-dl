@@ -8,6 +8,7 @@ import cloudscraper
 from flask import Flask, jsonify, request
 
 from app.config.features import ENABLE_COOKIE_API
+from app.domain import auth_cooldown
 from app.providers.cookies.registry import scan_cookie_files
 from app.services.download_service import recent_jobs_payload
 from app.services import cookie_service, queue_service
@@ -175,3 +176,23 @@ def register(app: Flask) -> None:
             except ValueError as exc:
                 return jsonify({"error": str(exc)}), 400
             return jsonify({"message": f"Deleted {deleted} cookie file(s)."})
+
+        @app.route("/api/cookies/<path:domain>/cooldown", methods=["DELETE"])
+        def clear_cookie_cooldown(domain: str):
+            """Manual override (dispatch B2): end `domain`'s auth-failure
+            cooldown right now, without touching its cookie jar at all — for
+            when the owner believes the site's own block already lifted and
+            doesn't want to wait out AUTH_COOLDOWN_SECONDS
+            (app/domain/auth_cooldown.py). Same same-origin CSRF guard as the
+            other cookie-mutation endpoints above; idempotent (200 either way,
+            `cleared` says whether a cooldown actually existed)."""
+            ok, reason = _check_same_origin()
+            if not ok:
+                return jsonify({"error": reason}), 403
+            cleared = auth_cooldown.clear_cooldown(domain)
+            return jsonify(
+                {
+                    "message": "冷卻已解除。" if cleared else "此網域目前沒有冷卻中。",
+                    "cleared": cleared,
+                }
+            )

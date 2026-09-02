@@ -4,52 +4,28 @@ import subprocess
 import sys
 from datetime import datetime, timedelta
 
-from app.config.downloaders import DOWNLOADER_PACKAGES, PIP_UPDATE_TIMEOUT_SECONDS, UPDATE_COOLDOWN_SECONDS
+# STALE_EXTRACTOR_SIGNATURES / is_stale_extractor_error moved to
+# app.config.downloaders (2026-09-02, G4 layer-violation fix) — the two `as
+# name` re-imports below are ruff/mypy's standard "intentional re-export"
+# idiom (not a no-op), so `updater_service.is_stale_extractor_error(...)` /
+# `updater_service.STALE_EXTRACTOR_SIGNATURES` keep resolving as module
+# attributes for every existing caller (app.services.download_service,
+# tests/test_updater_service.py, tests/test_gallery_dl_error_capture.py) with
+# zero call-site changes — this module has no internal use of either name
+# itself. See app/config/downloaders.py for the full docstring (signature
+# list, gallery-dl/yt-dlp wording verification, why each phrase was chosen)
+# and app/domain/auth_failure.py for the OTHER caller this move exists to
+# unblock (it needed the same predicate but cannot import app.services —
+# app.domain sits below it in the layers contract).
+from app.config.downloaders import (
+    DOWNLOADER_PACKAGES,
+    PIP_UPDATE_TIMEOUT_SECONDS,
+    UPDATE_COOLDOWN_SECONDS,
+)
+from app.config.downloaders import STALE_EXTRACTOR_SIGNATURES as STALE_EXTRACTOR_SIGNATURES
+from app.config.downloaders import is_stale_extractor_error as is_stale_extractor_error
 from app.storage.db import init_db
 from app.storage.repositories import downloader_state_repo
-
-# Conservative, low-false-positive "stale extractor" signatures. Matched case-
-# insensitively against a FAILED download's error message. Kept centralized and
-# tight on purpose — a broad match would trigger pointless pip upgrades on
-# unrelated failures (auth walls, network errors, cookie problems, ...).
-#
-#   - "cannot parse data" — yt-dlp's extractor-broke phrasing.
-#   - "unable to extract" — shared: yt-dlp's phrasing AND gallery-dl's
-#     `exception.AbortExtraction` messages (verified in gallery-dl's own extractor
-#     source, e.g. patreon.py "Unable to extract bootstrap data", pixiv.py
-#     "Unable to extract Ugoira URL", bilibili.py "Unable to extract INITIAL_STATE
-#     data" — all raised when a site's page/API structure changed).
-#   - "failed to parse json data"   — gallery-dl's JSONDecodeError catch-all
-#     (job.py: `log.error("Failed to parse JSON data:  %s: %s", ...)`); the
-#     classic "site's API response shape changed" symptom.
-#   - "an unexpected error occurred" — gallery-dl's generic per-extractor
-#     exception catch-all (job.py: `log.error("An unexpected error occurred: %s
-#     - %s. Please run gallery-dl again with --verbose ...")`) — fires on ANY
-#     unhandled exception while an extractor runs (KeyError/AttributeError/...),
-#     which in practice is overwhelmingly "the site changed and the extractor's
-#     assumptions broke", not a gallery-dl bug.
-#
-# Verified live against the installed gallery-dl CLI: `[gallery-dl][error]
-# Unsupported URL '...'` / `[danbooru][error] HttpError: '404 Not Found' for
-# '...'` — confirming gallery-dl's real wording is `[<name>][error] <message>`,
-# printed to stderr (gallery_dl/output.py LOG_FORMAT). Deliberately NOT matched:
-# "unsupported url" (ambiguous — could just be a genuinely unsupported site, not
-# staleness) and "no results" (that's an INFO-level log for a legitimately empty
-# gallery, not a FAILED-path error — never reaches this classifier in practice).
-STALE_EXTRACTOR_SIGNATURES: tuple[str, ...] = (
-    "cannot parse data",
-    "unable to extract",
-    "failed to parse json data",
-    "an unexpected error occurred",
-)
-
-
-def is_stale_extractor_error(error: str | None) -> bool:
-    """Classify a download failure's error text as a likely stale-extractor issue."""
-    if not error:
-        return False
-    lowered = error.lower()
-    return any(signature in lowered for signature in STALE_EXTRACTOR_SIGNATURES)
 
 
 def _get_version(command: str) -> str | None:

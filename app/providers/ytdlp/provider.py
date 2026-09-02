@@ -8,7 +8,9 @@ from urllib.parse import urlparse
 
 from app.config.paths import ROOT_DIR
 from app.config.settings import normalize_domain
+from app.domain import auth_cooldown, auth_failure
 from app.domain.enums import JobStatus, Provider
+from app.domain.error_sanitizer import sanitize_error
 from app.domain.jobs import DownloadResult
 from app.providers.cookies.resolver import resolve_cookie_file
 from app.services.path_service import provider_root, sanitize_component
@@ -96,6 +98,36 @@ def download(url: str) -> DownloadResult:
             error="yt-dlp executable not found (repo-root override or PATH/venv Scripts) — check `pip install yt-dlp` ran",
         )
 
+    # Resolved BEFORE the cooldown check (fix-round-2 — previously this ran
+    # after, so in_cooldown() had no cookie_path to self-heal against and
+    # yt-dlp alone lacked the mtime self-heal gallery-dl already had — see
+    # in_cooldown()'s docstring in app/domain/auth_cooldown.py).
+    cookie_path = resolve_cookie_file(url, Provider.YTDLP.value)
+
+    # Auth-failure cooldown (item 1) — same domain-scoped cooldown gallery-dl
+    # checks (app/domain/auth_cooldown.py): youtube.com/youtu.be are
+    # yt-dlp-only, and facebook.com/fb.watch/twitter.com/x.com are tried by
+    # BOTH engines against the same cookie file, so this must be checked
+    # here too, not just in app/providers/gallery_dl/provider.py. Passing
+    # cookie_path lets in_cooldown() self-heal an OUT-OF-BAND jar rewrite —
+    # the engines' own cookies-update/save_cookies() write-back, a manual
+    # file replace, or a MULTI_PROVIDER_DOMAINS alias sibling — the same
+    # protection gallery-dl's provider already had; a re-seed through
+    # cookie_service.save_cookie()/delete_cookie() was ALREADY
+    # engine-agnostic before this change (it clears the cooldown directly),
+    # so this closes the narrower out-of-band gap, not the primary path.
+    cooling_down, cooldown_until = auth_cooldown.in_cooldown(domain, cookie_path)
+    if cooling_down:
+        assert cooldown_until is not None  # in_cooldown() always pairs True with a timestamp
+        return DownloadResult(
+            status=JobStatus.FAILED,
+            provider=Provider.YTDLP,
+            domain=domain,
+            download_path=str(root),
+            error=auth_cooldown.cooldown_message(domain, cooldown_until),
+            metadata={"auth_classification": auth_failure.AUTH, "auth_cooldown": True},
+        )
+
     command = [
         executable,
         "--windows-filenames",
@@ -107,7 +139,6 @@ def download(url: str) -> DownloadResult:
         "--output",
         _output_template(root),
     ]
-    cookie_path = resolve_cookie_file(url, Provider.YTDLP.value)
     root = _probe_user_root(executable, url, root, cookie_path)
     command[command.index("--output") + 1] = _output_template(root)
     if cookie_path:
@@ -131,8 +162,26 @@ def download(url: str) -> DownloadResult:
         sys.stdout.write(line)
     process.wait()
     status = JobStatus.SUCCESS if process.returncode == 0 else JobStatus.FAILED
-    error = ""
-    if status == JobStatus.FAILED:
-        lines = [line.strip() for line in output_lines if line.strip()]
-        error = lines[-1] if lines else "yt-dlp failed"
-    return DownloadResult(status=status, provider=Provider.YTDLP, domain=domain, download_path=str(root), error=error)
+    if status == JobStatus.SUCCESS:
+        return DownloadResult(status=status, provider=Provider.YTDLP, domain=domain, download_path=str(root))
+
+    lines = [line.strip() for line in output_lines if line.strip()]
+    raw_error = lines[-1] if lines else "yt-dlp failed"
+    # item 2: classify + record on every failure (no retry loop exists here
+    # to cut short — a single yt-dlp invocation is already "one attempt" —
+    # but an AUTH classification still arms the cross-engine cooldown
+    # (app/domain/auth_cooldown.py) so the NEXT job for this domain, via
+    # either engine, doesn't immediately retry with the same rejected
+    # cookie). The error text is routed through the sanitizer before it
+    # reaches jobs.error / history_entries.meta.error.
+    classification = auth_failure.classify(raw_error)
+    if classification == auth_failure.AUTH:
+        auth_cooldown.record_auth_failure(domain, raw_error)
+    return DownloadResult(
+        status=status,
+        provider=Provider.YTDLP,
+        domain=domain,
+        download_path=str(root),
+        error=sanitize_error(raw_error),
+        metadata={"auth_classification": classification},
+    )

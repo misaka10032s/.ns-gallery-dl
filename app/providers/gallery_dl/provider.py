@@ -11,7 +11,9 @@ from urllib.request import Request, urlopen
 from urllib.parse import urlparse
 
 from app.config.settings import normalize_domain
+from app.domain import auth_cooldown, auth_failure
 from app.domain.enums import JobStatus, Provider
+from app.domain.error_sanitizer import sanitize_error
 from app.domain.jobs import DownloadResult
 from app.providers.cookies.resolver import resolve_cookie_file
 from app.providers.sites import wnacg_health
@@ -183,11 +185,47 @@ def download(url: str, tokens: dict, max_retries: int = 5, retry_delay: int = 5,
     env = os.environ.copy()
     root = provider_root(Provider.GALLERY_DL, domain)
     if domain == "pixiv.net":
-        token = get_pixiv_refresh_token(tokens)
-        if token:
-            env["GALLERYDL_PIXIV_REFRESH_TOKEN"] = token
+        # why: still bootstraps the OAuth flow on first use and caches the
+        # resulting token into data/tokens.json (consumed by GET
+        # /api/auth/pixiv's status check) — but no longer writes it into
+        # `env`. `GALLERYDL_PIXIV_REFRESH_TOKEN` is a no-op: a grep across the
+        # installed gallery-dl package (1.32.1) finds no code anywhere that
+        # reads this name. gallery-dl authenticates pixiv purely from its OWN
+        # config file (~/.config/gallery-dl/config.json ->
+        # extractor.pixiv.refresh-token, written by `gallery-dl oauth:pixiv`
+        # itself — see app/providers/gallery_dl/auth.py), which every
+        # gallery-dl subprocess call below already reads on its own, with no
+        # help needed from this process's environment.
+        # docs/blueprint/entries/BP-PROV-PIXIV-1.md currently documents the
+        # env var as functional — needs correcting (see this phase's
+        # implement.md; blueprint edits are the orchestrator's, not this
+        # dispatch's, to make).
+        get_pixiv_refresh_token(tokens)
 
     cookie_candidates = _cookie_candidates(url, domain)
+
+    # Auth-failure cooldown (item 1): checked BEFORE any credentialed request
+    # is made for this domain (gallery-dl and yt-dlp share one cooldown per
+    # domain — see app/domain/auth_cooldown.py). A prior job already proved
+    # this domain's cookie/token is rejected; don't hammer it again with more
+    # credential-bearing requests until the cooldown elapses.
+    # Pass the resolved cookie file (if any) so in_cooldown() can self-heal a
+    # stale cooldown that a jar rewrite (this app's own save_cookie(), or a
+    # MULTI_PROVIDER_DOMAINS sibling domain sharing the same physical file)
+    # already resolved — see app/domain/auth_cooldown.py's `_cookie_changed_since`.
+    current_cookie_path = next((c for c in cookie_candidates if c), None)
+    cooling_down, cooldown_until = auth_cooldown.in_cooldown(domain, current_cookie_path)
+    if cooling_down:
+        assert cooldown_until is not None  # in_cooldown() always pairs True with a timestamp
+        return DownloadResult(
+            status=JobStatus.FAILED,
+            provider=Provider.GALLERY_DL,
+            domain=domain,
+            download_path=str(root),
+            error=auth_cooldown.cooldown_message(domain, cooldown_until),
+            metadata={"auth_classification": auth_failure.AUTH, "auth_cooldown": True},
+        )
+
     root = _probe_user_root(url, env, domain, root, cookie_candidates)
     if domain == "pixiv.net" and root == provider_root(Provider.GALLERY_DL, domain) and tokens.get("pixiv_author_hint"):
         root = pixiv_root(domain, tokens.get("pixiv_author_hint"))
@@ -201,6 +239,23 @@ def download(url: str, tokens: dict, max_retries: int = 5, retry_delay: int = 5,
                 attempt_failed = True
                 if sim_error:
                     last_error = sim_error
+                # why (item 1): an AUTH-classified failure stops here — ONE
+                # attempt, not the usual up-to-`max_retries` x
+                # len(cookie_candidates) (previously up to 5*2=10
+                # credential-bearing requests per job). A network error,
+                # timeout, or non-auth HTTP failure keeps the EXISTING retry
+                # behaviour untouched (falls through to `continue` below,
+                # same as before this change).
+                if auth_failure.classify(sim_error) == auth_failure.AUTH:
+                    auth_cooldown.record_auth_failure(domain, sim_error)
+                    return DownloadResult(
+                        status=JobStatus.FAILED,
+                        provider=Provider.GALLERY_DL,
+                        domain=domain,
+                        download_path=str(root),
+                        error=sanitize_error(sim_error),
+                        metadata={"auth_classification": auth_failure.AUTH},
+                    )
                 continue
             if total == 0:
                 saw_zero_results = True
@@ -220,20 +275,37 @@ def download(url: str, tokens: dict, max_retries: int = 5, retry_delay: int = 5,
             attempt_failed = True
             if dl_error:
                 last_error = dl_error
+            # Same one-attempt-and-stop rule as the simulate branch above.
+            if auth_failure.classify(dl_error) == auth_failure.AUTH:
+                auth_cooldown.record_auth_failure(domain, dl_error)
+                return DownloadResult(
+                    status=JobStatus.FAILED,
+                    provider=Provider.GALLERY_DL,
+                    domain=domain,
+                    download_path=str(root),
+                    error=sanitize_error(dl_error),
+                    metadata={"auth_classification": auth_failure.AUTH},
+                )
         if domain == "pixiv.net" and attempt_failed:
             token = get_pixiv_refresh_token(tokens)
             if token:
-                env["GALLERYDL_PIXIV_REFRESH_TOKEN"] = token
                 continue
         if attempt < max_retries:
             time.sleep(retry_delay)
 
     if saw_zero_results:
         return DownloadResult(status=JobStatus.SKIPPED, provider=Provider.GALLERY_DL, domain=domain, download_path=str(root))
+    # item 2: classify + record on EVERY failed result reaching this generic
+    # path (not just the early-stop AUTH case above) so phase 1b has a
+    # signal to render even for a not-auth / indeterminate failure. The error
+    # text is routed through the sanitizer here for the same reason the
+    # early-stop branches above do it — this is now a "classified message"
+    # about to reach jobs.error / history_entries.meta.error.
     return DownloadResult(
         status=JobStatus.FAILED,
         provider=Provider.GALLERY_DL,
         domain=domain,
         download_path=str(root),
-        error=last_error or "gallery-dl failed",
+        error=sanitize_error(last_error) if last_error else "gallery-dl failed",
+        metadata={"auth_classification": auth_failure.classify(last_error)},
     )
