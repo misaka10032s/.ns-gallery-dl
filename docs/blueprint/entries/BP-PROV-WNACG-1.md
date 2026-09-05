@@ -10,6 +10,14 @@ exec_links:
   - app/providers/sites/wnacg.py
   - app/providers/gallery_dl/provider.py
 origin: "`app/providers/sites/wnacg.py` 首次入庫於 Build ns-media-hub unified workspace（998bfec，2026-05-21）"
+qa_log:
+  - date: 2026-09-05
+    q: "wnacg 主線路（worker API `d1.wcdn.date`）長期被 Cloudflare 擋，cloudscraper 1.2.71
+      解不掉，目前靠備用線路（Server 2）撐著——這個缺口要不要處理、往哪個方向解？"
+    a: "「給我解決辦法 不准卡」——解法方向已核准：若備用線路哪天也上 CF，改走真瀏覽器
+      （Playwright/extension bridge）取連結，屆時再評估。403 本身**仍未解決**，持續由
+      `@PM/projects/ns-media-hub.md` Todo 追蹤（此裁定原始日期無可考據，僅能確認記錄回填
+      當下 2026-09-05 仍是此狀態）。"
 ---
 
 ## 設計說明
