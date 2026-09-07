@@ -11,6 +11,10 @@ exec_links:
   - app/config/downloaders.py
   - app/api/routes/downloaders.py
   - app/storage/repositories/downloader_state_repo.py
+qa_log:
+  - date: 2026-09-07
+    q: "@PM 待回答 N4（2026-09-05 全叢集稽核疑似漏收）：早年提過「gallery-dl 自動更新誤觸」與「Windows pip 安裝 timeout」兩件事，未進任何待辦也無裁定紀錄。現在程式還有自動更新機制嗎？要不要補回待辦？"
+    a: "查證（haiku，2026-09-07）：無定時／啟動自動更新；只有下載失敗且判定為提取器過期時才被動 `pip install -U`（`app/services/updater_service.py:105-182`），冷卻 6 小時（`app/config/downloaders.py:19`）、timeout 300 秒（`downloaders.py:25`、`updater_service.py:79`）；啟動腳本 `dl.cmd:47`／`dl.sh:54` 只在版本不符或帶 `-u` 時才 `pip install --upgrade`（無 timeout，但不會誤觸）。兩件舊問題在現行機制下不會發生。站主原話：「N4 結案」——**結案，不補待辦**。"
 origin: "`app/services/updater_service.py`、`app/config/downloaders.py` 首次入庫於 commit 0122272（2026-07-22），merge commit aa17f60（同日）"
 ---
 
