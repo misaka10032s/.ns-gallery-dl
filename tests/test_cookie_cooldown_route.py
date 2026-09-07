@@ -14,12 +14,20 @@ site's own block already lifted.
 Heavy dependencies (DB init, cookie scan, queue worker thread) are mocked at
 app bootstrap — this only exercises the route's own logic, matching
 tests/test_downloaders_route.py's pattern for the same reason.
+
+FIXTURE NOTE (待回答 #47): every `.delete()` below now passes
+`base_url="http://127.0.0.1:7601"` — see tests/test_downloaders_route.py's
+module docstring for why (the new global Origin/Host guard would otherwise
+reject the test client's default bare-`localhost` Host header). Fixture-only
+change, zero assertions changed.
 """
 from __future__ import annotations
 
 from unittest.mock import patch
 
 import pytest
+
+_BASE_URL = "http://127.0.0.1:7601"
 
 
 @pytest.fixture
@@ -40,7 +48,7 @@ def client():
 class TestClearCookieCooldownRoute:
     def test_clears_an_existing_cooldown(self, client):
         with patch("app.api.routes.misc.auth_cooldown.clear_cooldown", return_value=True) as mock_clear:
-            response = client.delete("/api/cookies/x.com/cooldown")
+            response = client.delete("/api/cookies/x.com/cooldown", base_url=_BASE_URL)
 
         mock_clear.assert_called_once_with("x.com")
         assert response.status_code == 200
@@ -49,7 +57,7 @@ class TestClearCookieCooldownRoute:
 
     def test_no_op_when_no_cooldown_existed_is_still_200(self, client):
         with patch("app.api.routes.misc.auth_cooldown.clear_cooldown", return_value=False):
-            response = client.delete("/api/cookies/x.com/cooldown")
+            response = client.delete("/api/cookies/x.com/cooldown", base_url=_BASE_URL)
 
         assert response.status_code == 200
         assert response.get_json()["cleared"] is False
@@ -58,6 +66,7 @@ class TestClearCookieCooldownRoute:
         with patch("app.api.routes.misc.auth_cooldown.clear_cooldown") as mock_clear:
             response = client.delete(
                 "/api/cookies/x.com/cooldown",
+                base_url=_BASE_URL,
                 headers={"Origin": "https://evil.example.com"},
             )
 

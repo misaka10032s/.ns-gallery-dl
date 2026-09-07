@@ -8,7 +8,6 @@
   "app/config/settings.py|UP035|Import from `collections.abc` instead: `Iterable`",
   "app/main.py|F401|`urllib.parse.urlparse` imported but unused",
   "app/providers/gallery_dl/provider.py|I001|Import block is un-sorted or un-formatted",
-  "app/services/discord_service.py|I001|Import block is un-sorted or un-formatted",
   "app/services/discord_service.py|RUF006|Store a reference to the return value of `asyncio.create_task`",
   "app/services/doujin_meta_service.py|UP037|Remove quotes from type annotation",
   "app/services/doujin_service.py|B905|`zip()` without an explicit `strict=` parameter",
