@@ -4,7 +4,7 @@ import asyncio
 import re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import aiohttp
 import discord
@@ -23,10 +23,22 @@ from app.config.settings import (
 )
 from app.domain.enums import JobSource, JobStatus, Provider
 from app.domain.jobs import JobRequest
+from app.domain.network_safety import MAX_REDIRECT_HOPS, UnsafeUrlError, is_safe_url
 from app.services import download_service, history_service, queue_service
 from app.services.path_service import discord_root, file_name_from_url, unique_file_path
 from app.services.token_service import load_tokens
 from app.storage.repositories import jobs_repo
+
+# 待回答 #48: a Discord message embed's image URL is attacker-influenced (any
+# user in a monitored channel can post a link whose embed points anywhere)
+# and was fetched here with aiohttp's default `allow_redirects=True` and NO
+# validation at all — an SSRF vector identical in shape to the direct_file
+# provider's (see app/providers/direct_file/provider.py). Discord CDN
+# attachments (`_save_attachment` below) are NOT changed: `discord.Attachment.
+# save()` fetches from Discord's own CDN via discord.py's internal HTTP
+# client, not an arbitrary attacker-supplied host, so that path is not the
+# same vector.
+_EMBED_REDIRECT_STATUS_CODES = frozenset({301, 302, 303, 307, 308})
 
 
 IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff"}
@@ -169,11 +181,28 @@ async def _download_embed_image(url: str, guild_name: str) -> bool:
     try:
         timeout = aiohttp.ClientTimeout(total=30)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(url) as response:
-                response.raise_for_status()
-                with path.open("wb") as handle:
-                    async for chunk in response.content.iter_chunked(8192):
-                        handle.write(chunk)
+            current_url = url
+            # 待回答 #48: validates `url` AND every redirect hop (up to
+            # MAX_REDIRECT_HOPS) before requesting it, mirroring
+            # app/providers/direct_file/provider.py::_open_with_redirect_guard
+            # — `allow_redirects=False` disables aiohttp's own automatic
+            # following so each `Location` can be re-checked first.
+            for hop in range(MAX_REDIRECT_HOPS + 1):
+                safe, reason = is_safe_url(current_url)
+                if not safe:
+                    raise UnsafeUrlError(reason)
+                async with session.get(current_url, allow_redirects=False) as response:
+                    if response.status in _EMBED_REDIRECT_STATUS_CODES:
+                        location = response.headers.get("Location")
+                        if not location or hop == MAX_REDIRECT_HOPS:
+                            raise UnsafeUrlError(f"Too many redirects (> {MAX_REDIRECT_HOPS}) following {url}")
+                        current_url = urljoin(current_url, location)
+                        continue
+                    response.raise_for_status()
+                    with path.open("wb") as handle:
+                        async for chunk in response.content.iter_chunked(8192):
+                            handle.write(chunk)
+                    break
         jobs_repo.update_job(job_id, JobStatus.SUCCESS.value, download_path=str(path), meta=meta)
         _save_direct_history(url, str(path), "embed", guild_name)
         return True

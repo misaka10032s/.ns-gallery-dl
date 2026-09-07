@@ -13,7 +13,25 @@ load_dotenv(ENV_FILE)
 APP_NAME = "NS Media Hub"
 APP_SLUG = "ns-media-hub"
 APP_VERSION = "2.0.0"
-LOCAL_API_BASE = os.environ.get("NS_MEDIA_HUB_API", "http://127.0.0.1:7601")
+
+# Single source of truth for the port the API server binds (app/api/app.py
+# run_server(), module/server.py) — and, critically, the SAME port
+# app/api/origin_guard.py's Host-header check requires (待回答 #47).
+# Previously "7601" was a bare literal duplicated independently in
+# run_server()'s default arg, module/server.py's app.run() call, the
+# LOCAL_API_BASE default below, and app/api/routes/misc.py's docstring; a
+# change to one would silently NOT propagate to the others, reopening the
+# exact CSRF/DNS-rebinding gap #47 closes (a mismatched module/server.py, in
+# particular, would 403 every mutating request through it against the
+# guard's now-different expected port — 待回答 #47 review F3). `int(...)`
+# deliberately raises loudly on a non-numeric override rather than silently
+# falling back — a broken port config must not make the guard silently
+# permissive. As of this fix, ONLY `NS_MEDIA_HUB_PORT` and this constant are
+# the source; `LOCAL_API_BASE` below and `module/server.py` both derive from
+# it rather than repeating "7601" (or any other value) independently.
+API_PORT = int(os.environ.get("NS_MEDIA_HUB_PORT", "7601") or "7601")
+
+LOCAL_API_BASE = os.environ.get("NS_MEDIA_HUB_API", f"http://127.0.0.1:{API_PORT}")
 
 
 def _csv_set(raw: str) -> set[str]:

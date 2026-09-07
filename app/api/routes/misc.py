@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import ipaddress
-import socket
 from urllib.parse import urlparse
 
 import cloudscraper
@@ -9,6 +7,7 @@ from flask import Flask, jsonify, request
 
 from app.config.features import ENABLE_COOKIE_API
 from app.domain import auth_cooldown
+from app.domain.network_safety import is_safe_url as _is_safe_url
 from app.providers.cookies.registry import scan_cookie_files
 from app.services.download_service import recent_jobs_payload
 from app.services import cookie_service, queue_service
@@ -50,32 +49,14 @@ def _check_same_origin() -> tuple[bool, str]:
     return True, ""
 
 
-def _is_safe_url(url: str) -> tuple[bool, str]:
-    """
-    Validate that a URL is safe to proxy.
-    Rejects non-HTTP(S) schemes and private/loopback/link-local hosts to prevent SSRF.
-    """
-    try:
-        parsed = urlparse(url)
-    except Exception:
-        return False, "Malformed URL."
-    if parsed.scheme not in {"http", "https"}:
-        return False, "Only http and https URLs are allowed."
-    host = parsed.hostname
-    if not host:
-        return False, "Missing host."
-
-    # Resolve hostname to IP and check it is a public address.
-    try:
-        addr_str = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)[0][4][0]
-        addr = ipaddress.ip_address(addr_str)
-    except Exception:
-        return False, f"Could not resolve host: {host}"
-
-    if addr.is_loopback or addr.is_private or addr.is_link_local or addr.is_reserved or addr.is_unspecified:
-        return False, "Requests to private or reserved addresses are not allowed."
-
-    return True, ""
+# `_is_safe_url` used to be defined here (bare substring-free but single-
+# address, first-getaddrinfo-result-only checks — see 待回答 #48). It is now
+# `app.domain.network_safety.is_safe_url`, imported above under its old name
+# for backward compatibility (this route below, and anything importing
+# `app.api.routes.misc._is_safe_url`, is unaffected) — the shared module also
+# checks EVERY resolved address (not just the first), rejects embedded
+# userinfo, and is reused by app/providers/direct_file/provider.py and
+# app/services/discord_service.py, which previously had no such check at all.
 
 
 def register(app: Flask) -> None:
